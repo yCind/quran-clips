@@ -19,10 +19,12 @@ import java.io.OutputStream
 class Bridge(private val a: Activity) {
     private var os: OutputStream? = null
     private var last: Uri? = null
-    @JavascriptInterface fun start(name: String) {
+    private var mime: String = "video/mp4"
+    @JavascriptInterface fun start(name: String, m: String) {
+        mime = m
         val v = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, name)
-            put(MediaStore.Downloads.MIME_TYPE, "video/webm")
+            put(MediaStore.Downloads.MIME_TYPE, mime)
             put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Hasanah")
         }
         val u = a.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v)!!
@@ -34,7 +36,7 @@ class Bridge(private val a: Activity) {
         val u = last ?: return
         a.runOnUiThread {
             val i = Intent(Intent.ACTION_SEND).apply {
-                type = "video/webm"; putExtra(Intent.EXTRA_STREAM, u); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                type = mime; putExtra(Intent.EXTRA_STREAM, u); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             a.startActivity(Intent.createChooser(i, "مشاركة المقطع"))
         }
