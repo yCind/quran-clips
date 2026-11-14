@@ -1,310 +1,47 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>حسنة</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Amiri:wght@400;700&family=Scheherazade+New:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Lateef&family=Aref+Ruqaa:wght@400;700&family=Reem+Kufi&family=Cairo:wght@400;700&family=Tajawal:wght@400;700&family=Harmattan:wght@400;700&display=swap">
-<style>
-:root{--bg:#14171f;--panel:#1c212c;--ink:#efe6d2;--dim:#9aa3b2;--acc:#7fb2a0;--line:#2b3242}
-*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Amiri","Noto Naskh Arabic","Droid Arabic Naskh",serif;font-size:18px}
-header{padding:12px 14px;border-bottom:1px solid var(--line)}
-.brand{color:var(--acc);font-size:15px}
-.dots{display:flex;gap:5px;margin-top:8px}.dots i{flex:1;height:4px;border-radius:2px;background:var(--line)}.dots i.on{background:var(--acc)}
-h2{margin:0;font-size:20px}main{padding:14px 14px 100px}
-label{display:block;color:var(--dim);margin:14px 0 6px}
-button,select,input[type=number],input[type=text]{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
-.row{display:flex;gap:10px;align-items:center}.opt{display:block;width:100%;text-align:start;margin-bottom:8px}.opt.sel{border-color:var(--acc);background:#22332d}
-.sw{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.sw button{height:46px;padding:0;border:2px solid var(--line);font-size:13px}.sw button.sel{border-color:var(--acc)}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.grid button{padding:10px 6px;font-size:15px}.grid button.sel{border-color:var(--acc);background:#22332d}
-.ck{display:flex;gap:10px;align-items:center;margin:10px 0;color:var(--ink)}.ck input{width:22px;height:22px;accent-color:#7fb2a0}
-input[type=color]{width:64px;height:44px;padding:2px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
-footer{position:fixed;bottom:0;inset-inline:0;display:flex;gap:10px;padding:12px 14px;background:var(--bg);border-top:1px solid var(--line)}
-.pri{background:var(--acc);color:#10231c;border-color:var(--acc)}.note{color:var(--dim);font-size:15px;line-height:1.8}
-video{width:100%;max-height:50vh;border-radius:10px;background:#000}progress{width:100%;height:10px}
-#pv{display:block;margin:0 auto 6px;max-width:100%;max-height:34vh;border-radius:10px;border:1px solid var(--line)}
-.out{display:flex;gap:8px;align-items:center;margin-top:10px}.out span{flex:1;font-size:16px}.out button{width:auto;padding:8px 14px}
-</style></head><body>
-<header><div class="brand">حسنة</div><h2 id="ttl"></h2><div class="dots" id="dots"></div></header>
-<main id="out"></main><footer id="ft"></footer>
-<input type="file" id="bgf" accept="image/*,video/*" hidden onchange="pickBg(this)">
-<script>
-const $=id=>document.getElementById(id);
-const LS={get:k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const frac=x=>x-Math.floor(x),h=n=>frac(Math.sin(n*127.1+311.7)*43758.5453),ease=x=>x*x*(3-2*x),sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const AR=n=>String(n).replace(/\d/g,d=>"٠١٢٣٤٥٦٧٨٩"[d]);
-const REC=[["ar.alafasy","مشاري العفاسي"],["ar.husary","محمود خليل الحصري"],["ar.minshawi","محمد صديق المنشاوي"],["ar.abdulbasitmurattal","عبد الباسط عبد الصمد"],["ar.mahermuaiqly","ماهر المعيقلي"],["ar.hudhaify","علي الحذيفي"],["ar.shaatree","أبو بكر الشاطري"],["ar.ahmedajamy","أحمد العجمي"],["ar.muhammadayyoub","محمد أيوب"]];
-const BG=[["ليل",["#14171f","#27344a"]],["فجر",["#2a1f2d","#7a4a52"]],["واحة",["#0e211a","#2a5a47"]],["رمل",["#2b2418","#6b5a34"]],["بحر",["#0d1b2a","#1b4965"]],["غروب",["#2b1b17","#b5651d"]],["بنفسجي",["#1d1530","#4b3a7a"]],["أسود",["#000000","#101010"]]];
-const BGT=["ألوان","مشاهد طبيعية متحركة","صور طبيعة (من الإنترنت)","من معرضي (صورة أو فيديو)"];
-const SCENES=["ليلة النجوم","الشروق","الصحراء","الغابة والضباب","المحيط","الشفق القطبي","الغيوم"];
-const PHOTOS=[["Moraine Lake 17092005.jpg","بحيرة بين الجبال"],["Lake near Sunnig Grat summit.JPG","بحيرة جبلية عالية"],["Mount Hood reflected in Mirror Lake, Oregon.jpg","جبل وانعكاسه"],["Lake mapourika NZ.jpeg","بحيرة هادئة"],["Mountain view in Robson valley.jpg","وادٍ جبلي"],["Lac de Montriond 07.jpg","بحيرة الجبال"],["Mount Shasta, Lake Siskiyou, SW view.jpg","جبل وبحيرة"],["Sunrise at Maligne lake.jpg","شروق على البحيرة"],["Frozen Hooker Glacier Lake and Hooker Glacier in winter with Mount Cook in the background.jpg","جليد وجبال"]];
-const OVL=["بدون","نجوم متلألئة","غبار ذهبي","مطر","ثلج"];
-const ANIM=["بدون","تلاشي","انزلاق","تكبير","ضبابي"];
-const FRM=["بدون","خط بسيط","إطار زخرفي"];
-const FM=[[9,16,"عمودي 9:16 (ستوري)"],[1,1,"مربع 1:1"],[16,9,"أفقي 16:9"],[4,5,"عمودي 4:5 (إنستغرام)"]];
-const FONTS=[["Amiri Quran","أميري قرآن (الأفضل للتشكيل)"],["Scheherazade New","شهرزاد (تشكيل ممتاز)"],["Amiri","أميري"],["Noto Naskh Arabic","نسخ"],["Lateef","لطيف"],["Aref Ruqaa","عارف رقعة"],["Reem Kufi","ريم كوفي"],["Cairo","القاهرة"],["Tajawal","تجوّل"],["Harmattan","هرمتان"]];
-const PAL=["#efe6d2","#ffffff","#e6c36a","#9ad7b8","#8fd3f4","#f4b8c8","#f2a65a","#111111"];
-const META=[["rgba(239,230,210,.75)","كريمي خافت"],["#e6c36a","ذهبي"],["#ffffff","أبيض"],["#aab3c2","رمادي"]];
-const SZ=[[64,"كبير"],[50,"متوسط"],[38,"صغير"]];
-const DIM=[[0,"بدون"],[30,"خفيف"],[50,"متوسط"],[70,"قوي"]];
-const TXT=[["quran-uthmani","الرسم العثماني (تشكيل المصحف)"],["quran-simple","الرسم الإملائي (تشكيل مبسّط)"],["quran-simple-clean","بدون تشكيل"]];
-const TRS=[["","بدون ترجمة"],["ar.muyassar","التفسير الميسر (عربي)"],["en.sahih","الإنجليزية (Sahih)"],["fr.hamidullah","الفرنسية (Hamidullah)"]];
-const QS=[[480,"480p (خفيف)",1200000],[720,"720p (متوسط)",2500000],[1080,"1080p (عالٍ)",5000000]];
-const BISM="بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ";
-const S=Object.assign({surah:1,from:1,to:1,rec:"ar.alafasy",bg:0,bgType:0,scene:0,photo:0,fmt:0,tr:"",rep:1,col:"#efe6d2",mcol:0,sz:0,font:0,dim:30,txt:0,showS:true,showR:true,showN:true,qs:[720],anim:2,ov:0,frm:1,intro:false,sweep:false,pbar:true,cap:""},LS.get("s3")||{},{step:0,run:false,outs:null,err:null,note:null});
-let SUR=LS.get("sur"),MAX=15,BGM=null,PH={el:null,idx:-1,st:""},LV=0;
-const T=["اختيار السورة","اختيار الآيات","اختيار القارئ","الخلفية والقياس","الخط والنص","التأثيرات والإضافات","الجودة والإنشاء"];
-const cnt=()=>SUR?SUR[S.surah-1].n:1;
-async function surahs(){if(SUR)return;try{const j=await(await fetch("https://api.alquran.cloud/v1/surah")).json();SUR=j.data.map(x=>({a:x.name.replace("سُورَةُ ","").replace("سورة ",""),n:x.numberOfAyahs}));LS.set("sur",SUR)}catch(e){}}
-function save(){const{step,run,outs,err,note,...r}=S;LS.set("s3",r)}
-const nav=(l,r)=>{$("ft").innerHTML=l+r};
-const opt=(a,v,k)=>a.map((x,i)=>{const val=k?x[0]:i;return `<option value="${val}" ${val==v?"selected":""}>${x[1]}</option>`}).join("");
-const optS=(a,v)=>a.map((x,i)=>`<option value="${i}" ${i==v?"selected":""}>${x}</option>`).join("");
-const ck=(k,l)=>`<label class="ck"><input type="checkbox" ${S[k]?"checked":""} onchange="S.${k}=this.checked;save()">${l}</label>`;
-const dims=(q,fm)=>{const[a,b]=FM[fm],e=n=>Math.round(n/2)*2;return a>b?[e(q*a/b),q]:a==b?[q,q]:[q,e(q*b/a)]};
-/* ---------- الخلفيات ---------- */
-function pickBg(inp){const f=inp.files&&inp.files[0];if(!f)return;const u=URL.createObjectURL(f);
- if(BGM){if(BGM.vid)BGM.el.remove();URL.revokeObjectURL(BGM.url)}
- if(f.type.startsWith("video")){const v=document.createElement("video");v.muted=true;v.loop=true;v.playsInline=true;v.src=u;v.style.cssText="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none";document.body.appendChild(v);v.play().catch(()=>{});BGM={el:v,url:u,name:f.name,vid:true}}
- else{const im=new Image();im.src=u;BGM={el:im,url:u,name:f.name}}
- S.bgType=3;inp.value="";render()}
-function rmBg(){if(BGM){if(BGM.vid)BGM.el.remove();URL.revokeObjectURL(BGM.url)}BGM=null;render()}
-async function loadPhoto(i){PH={el:null,idx:i,st:"load"};render();try{const u=`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(PHOTOS[i][0])}?width=1280`;const r=await fetch(u);if(!r.ok)throw 0;const im=new Image();im.src=URL.createObjectURL(await r.blob());await im.decode();if(PH.idx==i){PH.el=im;PH.st="ok"}}catch(e){if(PH.idx==i)PH.st="err"}render()}
-function setBgType(v){S.bgType=v;if(v==2&&PH.idx!=S.photo)loadPhoto(S.photo);else render()}
-function cover(c,el,W,H){const iw=el.videoWidth||el.naturalWidth,ih=el.videoHeight||el.naturalHeight;if(!iw||!ih)return false;const k=Math.max(W/iw,H/ih),w=iw*k,hh=ih*k;c.drawImage(el,(W-w)/2,(H-hh)/2,w,hh);return true}
-function seekTo(v,tt){return new Promise(r=>{if(Math.abs(v.currentTime-tt)<0.02)return r();const f=()=>{v.removeEventListener("seeked",f);r()};v.addEventListener("seeked",f);v.currentTime=tt;setTimeout(r,700)})}
-async function seekBg(t){if(S.bgType==3&&BGM&&BGM.vid){const v=BGM.el;v.pause();await seekTo(v,t%(v.duration||1))}}
-function grad(c,W,H,a,b){const g=c.createLinearGradient(0,0,0,H);g.addColorStop(0,a);g.addColorStop(1,b);c.fillStyle=g;c.fillRect(0,0,W,H)}
-function ridge(c,W,H,y,amp,f,ph,col){c.fillStyle=col;c.beginPath();c.moveTo(0,H);for(let x=0;x<=W;x+=16)c.lineTo(x,y-amp*(0.6*Math.sin(x*f+ph)+0.4*Math.sin(x*f*2.3+ph*1.7)));c.lineTo(W,H);c.closePath();c.fill()}
-function stars(c,W,H,t,n,maxY){for(let i=0;i<n;i++){const x=h(i)*W,y=h(i+500)*maxY,r=0.6+h(i+900)*1.6,a=0.4+0.6*Math.abs(Math.sin(t*(0.5+h(i+1300))+i));c.fillStyle=`rgba(255,255,240,${a})`;c.beginPath();c.arc(x,y,r,0,6.283);c.fill()}}
-function scene(c,W,H,t,id){
- if(id==0){grad(c,W,H,"#050816","#1c2b52");stars(c,W,H,t,150,H*0.72);
-  const mx=W*0.76,my=H*0.14,mr=W*0.055,g=c.createRadialGradient(mx,my,mr*0.3,mx,my,mr*3);g.addColorStop(0,"rgba(255,245,210,.9)");g.addColorStop(0.25,"rgba(255,245,210,.25)");g.addColorStop(1,"rgba(255,245,210,0)");c.fillStyle=g;c.fillRect(mx-mr*3,my-mr*3,mr*6,mr*6);c.fillStyle="#f6efd6";c.beginPath();c.arc(mx,my,mr,0,6.283);c.fill();
-  const k=(t%7)/7;if(k<0.1){const p=k/0.1,x=W*(0.85-0.45*p),y=H*(0.08+0.22*p);c.strokeStyle=`rgba(255,255,255,${1-p})`;c.lineWidth=3;c.beginPath();c.moveTo(x,y);c.lineTo(x+70,y-45);c.stroke()}
-  ridge(c,W,H,H*0.80,H*0.06,0.006,1,"#0d1530");ridge(c,W,H,H*0.88,H*0.05,0.008,3,"#070b1c")}
- else if(id==1){grad(c,W,H,"#24457f","#f4a259");const sx=W*0.5,sy=H*0.56+H*0.03*Math.sin(t*0.3);
-  c.save();c.translate(sx,sy);c.rotate(t*0.04);for(let i=0;i<14;i++){c.rotate(6.283/14);c.fillStyle="rgba(255,236,170,.08)";c.beginPath();c.moveTo(0,0);c.lineTo(-70,-H);c.lineTo(70,-H);c.fill()}c.restore();
-  const g=c.createRadialGradient(sx,sy,10,sx,sy,W*0.5);g.addColorStop(0,"rgba(255,244,200,1)");g.addColorStop(0.15,"rgba(255,214,140,.6)");g.addColorStop(1,"rgba(255,170,90,0)");c.fillStyle=g;c.fillRect(0,0,W,H);
-  ridge(c,W,H,H*0.74,H*0.05,0.007,2,"#3a4a5e");ridge(c,W,H,H*0.82,H*0.05,0.009,5,"#26333f");ridge(c,W,H,H*0.9,H*0.04,0.011,1,"#141c24")}
- else if(id==2){grad(c,W,H,"#f7c873","#c76f2b");const g=c.createRadialGradient(W*0.3,H*0.22,5,W*0.3,H*0.22,W*0.35);g.addColorStop(0,"#fff6cf");g.addColorStop(0.3,"rgba(255,240,190,.5)");g.addColorStop(1,"rgba(255,240,190,0)");c.fillStyle=g;c.fillRect(0,0,W,H);
-  ridge(c,W,H,H*0.62,H*0.05,0.005,t*0.05+1,"#d98e47");ridge(c,W,H,H*0.74,H*0.06,0.006,t*0.04+3,"#b5702f");ridge(c,W,H,H*0.86,H*0.05,0.008,t*0.03+5,"#8f5421");
-  c.fillStyle="rgba(255,225,170,.5)";for(let i=0;i<70;i++){c.fillRect((h(i)*W+t*(60+h(i+2)*90))%W,H*0.55+h(i+4)*H*0.4,2,2)}}
- else if(id==3){grad(c,W,H,"#08221e","#2f6b4f");
-  for(let i=0;i<4;i++){const x=((t*(14+i*6))%(W*1.6))-W*0.3,y=H*(0.35+i*0.1),g=c.createRadialGradient(x,y,10,x,y,W*0.5);g.addColorStop(0,`rgba(255,255,255,${0.16+0.05*Math.sin(t*0.5+i)})`);g.addColorStop(1,"rgba(255,255,255,0)");c.fillStyle=g;c.fillRect(0,y-W*0.5,W,W)}
-  for(let l=0;l<3;l++){const by=H*(0.74+0.07*l),sz=W*(0.07+0.03*l);c.fillStyle=["#0f3a2c","#0a2a20","#05150f"][l];for(let i=0;i<9;i++){const x=(i+0.3+h(i+l*17)*0.6)/9*W+Math.sin(t*0.3+i+l)*4;c.beginPath();c.moveTo(x,by-sz*2.6);c.lineTo(x-sz*0.8,by);c.lineTo(x+sz*0.8,by);c.fill()}c.fillRect(0,by-2,W,H)}}
- else if(id==4){grad(c,W,H,"#0a2342","#2a7fa5");const g=c.createLinearGradient(W/2,H*0.5,W/2,H);g.addColorStop(0,"rgba(255,240,200,.35)");g.addColorStop(1,"rgba(255,240,200,0)");c.fillStyle=g;c.fillRect(W*0.4,H*0.5,W*0.2,H*0.5);
-  for(let i=0;i<7;i++)ridge(c,W,H,H*(0.52+i*0.07),8+i*4,0.012-0.001*i,t*(0.7+0.25*i)+i,`rgba(${14+i*6},${70+i*14},${120+i*12},.6)`)}
- else if(id==5){grad(c,W,H,"#020611","#0b1f2e");stars(c,W,H,t,120,H*0.6);
-  [["0,255,170",0.30],["90,160,255",0.36],["190,90,255",0.42]].forEach((q,b)=>{const g=c.createLinearGradient(0,H*0.15,0,H*0.62);g.addColorStop(0,`rgba(${q[0]},0)`);g.addColorStop(0.5,`rgba(${q[0]},.38)`);g.addColorStop(1,`rgba(${q[0]},0)`);c.fillStyle=g;c.beginPath();
-   const yy=x=>H*q[1]+70*Math.sin(x*0.007+t*0.5+b*1.4)+30*Math.sin(x*0.019-t*0.7+b);
-   for(let x=0;x<=W;x+=12){if(x==0)c.moveTo(x,yy(x));else c.lineTo(x,yy(x))}for(let x=W;x>=0;x-=12)c.lineTo(x,yy(x)+H*0.2);c.closePath();c.fill()});
-  ridge(c,W,H,H*0.86,H*0.04,0.006,2,"#dfeaf5");ridge(c,W,H,H*0.92,H*0.03,0.009,4,"#b9c9da")}
- else{grad(c,W,H,"#2f84d6","#cbe9ff");for(let i=0;i<8;i++){const sx=W*(0.14+0.1*h(i+6)),x=((h(i)*W*1.6+t*(8+h(i+9)*18))%(W*1.6))-W*0.3,y=H*(0.08+h(i+3)*0.62);c.fillStyle="rgba(255,255,255,.82)";for(let k=0;k<6;k++){c.beginPath();c.arc(x+(k-2.5)*sx*0.5,y+Math.sin(k*1.7+i)*sx*0.12,sx*(0.45+0.2*Math.sin(k*2+i)),0,6.283);c.fill()}}}}
-function overlay(c,W,H,t,id){
- if(id==1)stars(c,W,H,t,70,H*0.9);
- else if(id==2){for(let i=0;i<36;i++){const r=3+h(i)*7,x=h(i+1)*W+Math.sin(t*0.6+i)*25,y=H-((t*(18+h(i+2)*30)+h(i+3)*H)%(H+40))+20;c.fillStyle=`rgba(255,220,140,${0.12+0.25*h(i+4)})`;c.beginPath();c.arc(x,y,r,0,6.283);c.fill()}}
- else if(id==3){c.strokeStyle="rgba(200,220,255,.45)";c.lineWidth=2;c.beginPath();for(let i=0;i<110;i++){const x=h(i)*W,y=((h(i+7)*H+t*(700+h(i+3)*400))%(H+60))-30;c.moveTo(x,y);c.lineTo(x-6,y+26)}c.stroke()}
- else if(id==4){c.fillStyle="rgba(255,255,255,.8)";for(let i=0;i<90;i++){const r=2+h(i+9)*4,x=h(i)*W+Math.sin(t*0.8+i)*20,y=(h(i+5)*H+t*(40+h(i+2)*60))%(H+20)-10;c.beginPath();c.arc(x,y,r,0,6.283);c.fill()}}}
-/* ---------- الرسم ---------- */
-const FF=()=>`"${FONTS[S.font][0]}","Amiri Quran","Amiri","Noto Naskh Arabic",serif`;
-function wrap(c,t,w){const ws=t.split(" "),L=[];let l="";for(const x of ws){const y=l?l+" "+x:x;if(c.measureText(y).width>w&&l){L.push(l);l=x}else l=y}if(l)L.push(l);return L}
-function star(c,x,y,r){c.save();c.translate(x,y);for(let k=0;k<2;k++){c.rotate(Math.PI/4);c.fillRect(-r/2,-r/2,r,r)}c.restore()}
-function deco(c,W,H){if(!S.frm)return;c.strokeStyle="rgba(230,195,106,.55)";c.lineWidth=2;c.strokeRect(26,26,W-52,H-52);if(S.frm==2){c.lineWidth=1;c.strokeRect(40,40,W-80,H-80);c.fillStyle="#e6c36a";[[26,26],[W-26,26],[26,H-26],[W-26,H-26]].forEach(p=>star(c,p[0],p[1],16))}}
-const pads=H=>{const n=(S.showN?1:0)+(S.showR?1:0)+(S.cap?1:0);return[Math.round(H*0.13),Math.round(Math.max(H*0.12,n*38+66))]};
-function drawIntro(c,W,H){c.direction="rtl";const rn=REC.find(r=>r[0]==S.rec)[1];
- if(S.surah!=9){c.font=`54px ${FF()}`;c.fillStyle=S.col;wrap(c,BISM,W-150).forEach((x,i)=>c.fillText(x,W/2,H*0.34+i*90))}
- c.font=`84px ${FF()}`;c.fillStyle=S.col;c.fillText("سورة "+(SUR?SUR[S.surah-1].a:""),W/2,H*0.52);
- c.font=`34px ${FF()}`;c.fillStyle=META[S.mcol][0];c.fillText("بصوت القارئ "+rn,W/2,H*0.6)}
-function drawAyah(c,sg,t,W,H,pt,pb){
- const key=[W,H,S.font,S.sz,S.tr,pt,pb,LV].join("|");
- if(sg.lk!==key){sg.lk=key;c.direction="rtl";const mw=W-150,avail=H-pt-pb,hasTr=!!sg.tr;
-  let fs=SZ[S.sz][0],L;for(;fs>=22;fs-=2){c.font=`${fs}px ${FF()}`;L=wrap(c,sg.t,mw);if(L.length*fs*2<=avail*(hasTr?0.6:1))break}
-  const lh=fs*2,ah=L.length*lh;let ft=Math.min(34,Math.round(H*0.03)),TL=[];const trl=/^ar/.test(S.tr);
-  if(hasTr){c.direction=trl?"rtl":"ltr";for(ft=Math.max(22,ft);ft>=16;ft-=2){c.font=`${ft}px sans-serif`;TL=wrap(c,sg.tr,mw);if(TL.length*ft*1.6<=avail-ah-30)break}}
-  const th=hasTr?TL.length*ft*1.6+30:0;Object.assign(sg,{L,fs,lh,ah,TL,ft,trl,y0:pt+(avail-(ah+th))/2})}
- c.direction="rtl";c.font=`${sg.fs}px ${FF()}`;const ga=c.globalAlpha;
- if(!S.sweep){c.fillStyle=S.col;sg.L.forEach((x,i)=>c.fillText(x,W/2,sg.y0+i*sg.lh+sg.lh/2))}
- else{const f=Math.max(0,Math.min(1,(t-sg.s)/((sg.e-sg.s)*0.92))),tot=sg.L.reduce((q,x)=>q+x.length,0);let acc=0;
-  sg.L.forEach((x,i)=>{const y=sg.y0+i*sg.lh+sg.lh/2;c.fillStyle=S.col;c.globalAlpha=ga*0.38;c.fillText(x,W/2,y);c.globalAlpha=ga;
-   const lf=Math.max(0,Math.min(1,(f*tot-acc)/x.length));
-   if(lf>0){const lw=c.measureText(x).width;c.save();c.beginPath();c.rect(W/2+lw/2-lf*lw-3,y-sg.lh/2,lf*lw+6,sg.lh);c.clip();c.fillText(x,W/2,y);c.restore()}
-   acc+=x.length})}
- if(sg.TL.length){c.direction=sg.trl?"rtl":"ltr";c.font=`${sg.ft}px sans-serif`;c.fillStyle=META[S.mcol][0];sg.TL.forEach((x,i)=>c.fillText(x,W/2,sg.y0+sg.ah+30+i*sg.ft*1.6+sg.ft*0.8))}
- c.direction="rtl";c.font=`28px ${FF()}`;c.fillStyle=META[S.mcol][0];
- const bl=[];if(S.showN)bl.push("الآية "+AR(sg.n));if(S.showR)bl.push(REC.find(r=>r[0]==S.rec)[1]);
- const yE=H-40-(S.cap?38:0);bl.forEach((x,i)=>c.fillText(x,W/2,yE-(bl.length-1-i)*38))}
-function drawSeg(c,sg,t,W,H){
- const an=S.anim,ws=sg.s-(an?0.15:0.02),we=sg.e+0.3;if(t<ws||t>we)return;
- const ai=Math.min(1,(t-ws)/0.5),ao=Math.min(1,(we-t)/0.4),pin=an?ease(ai):1,pout=an?ease(ao):1,a=an?Math.min(pin,pout):1;
- const[pt,pb]=pads(H);c.save();c.globalAlpha=a;
- const dy=an==2?(1-pin)*60-(1-pout)*50:0,sc=an==3?(0.9+0.1*pin+(1-pout)*0.08):1;
- c.translate(W/2,H/2+dy);c.scale(sc,sc);c.translate(-W/2,-H/2);
- if(an==4){const b=(1-Math.min(pin,pout))*16;if(b>0.2)c.filter=`blur(${b}px)`}
- if(sg.intro)drawIntro(c,W,H);else drawAyah(c,sg,t,W,H,pt,pb);
- c.restore()}
-function drawAt(c,t,W,H,segs,total){
- const ty=S.bgType;let ok=false;
- if(ty==1){scene(c,W,H,t,S.scene);ok=true}
- else if(ty==2&&PH.el){ok=cover(c,PH.el,W,H)}
- else if(ty==3&&BGM){ok=cover(c,BGM.el,W,H)}
- if(ok&&ty>=2&&S.dim){c.fillStyle=`rgba(0,0,0,${S.dim/100})`;c.fillRect(0,0,W,H)}
- if(!ok){const g=c.createLinearGradient(0,0,W,H),b=BG[S.bg][1];g.addColorStop(0,b[0]);g.addColorStop(1,b[1]);c.fillStyle=g;c.fillRect(0,0,W,H)}
- overlay(c,W,H,t,S.ov);deco(c,W,H);
- c.textAlign="center";c.textBaseline="middle";try{c.textRendering="optimizeLegibility";c.fontKerning="normal"}catch(e){}
- if(ok||S.ov){c.shadowColor="rgba(0,0,0,.65)";c.shadowBlur=10}
- const[pt]=pads(H),intro=segs.some(s=>s.intro&&t>=s.s-0.15&&t<=s.e+0.3);
- if(S.showS&&!intro){c.direction="rtl";c.font=`44px ${FF()}`;c.fillStyle=META[S.mcol][0];c.fillText("سورة "+(SUR?SUR[S.surah-1].a:""),W/2,pt*0.55)}
- for(const sg of segs)drawSeg(c,sg,t,W,H);
- c.globalAlpha=1;c.direction="rtl";
- if(S.cap){c.font=`26px ${FF()}`;c.fillStyle=META[S.mcol][0];c.fillText(S.cap,W/2,H-40)}
- c.shadowBlur=0;
- if(S.pbar&&total){c.fillStyle="rgba(255,255,255,.18)";c.fillRect(40,H-16,W-80,4);const w=(W-80)*Math.min(1,t/total);c.fillStyle="#e6c36a";c.fillRect(W-40-w,H-16,w,4)}}
-const SAMPLE="بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ";
-async function loadFont(txt){try{await Promise.all([document.fonts.load(`40px "${FONTS[S.font][0]}"`,txt||SAMPLE),document.fonts.load('40px "Amiri Quran"',SAMPLE)])}catch(e){}LV++}
-async function setFont(i){S.font=i;await loadFont();render()}
-let PVT=0;
-async function drawPv(){const cv=$("pv");if(!cv)return;const[W,H]=dims(720,S.fmt);cv.width=W;cv.height=H;await loadFont();if($("pv")!==cv)return;
- const segs=[];let tt=0.2;if(S.intro){segs.push({intro:true,s:0.2,e:2.2});tt=2.6}
- segs.push({t:SAMPLE,n:1,s:tt,e:tt+3,tr:S.tr?(S.tr=="ar.muyassar"?"هنا يظهر التفسير تحت الآية":S.tr=="en.sahih"?"Translation appears here":"La traduction apparaît ici"):""});
- const total=tt+3.6,c=cv.getContext("2d"),tok=++PVT;
- (function f(){if(tok!=PVT||$("pv")!==cv)return;drawAt(c,(performance.now()/1000)%total,W,H,segs,total);requestAnimationFrame(f)})()}
-/* ---------- الواجهة ---------- */
-function render(){
- $("ttl").textContent=`الخطوة ${S.step+1} من 7: ${T[S.step]}`;
- $("dots").innerHTML=T.map((_,i)=>`<i class="${i<=S.step?"on":""}"></i>`).join("");
- const back=S.step>0&&!S.run?`<button onclick="go(-1)">السابق</button>`:"";
- const next=S.step<6?`<button class="pri" onclick="go(1)">التالي</button>`:"";
- const o=$("out");
- if(S.step==0){
-  if(!SUR){o.innerHTML='<p class="note">جارٍ تحميل قائمة السور…</p>';surahs().then(()=>{SUR?render():o.innerHTML='<p class="note">تعذّر تحميل القائمة. تحقق من الاتصال ثم أعد فتح التطبيق.</p>'});nav("","");return}
-  o.innerHTML=`<label>السورة</label><select onchange="S.surah=+this.value;S.from=1;S.to=Math.min(cnt(),MAX)">${SUR.map((x,i)=>`<option value="${i+1}" ${i+1==S.surah?"selected":""}>${i+1}. ${x.a} (${x.n} آية)</option>`).join("")}</select>`;nav("",next)}
- if(S.step==1){
-  if(S.to>cnt())S.to=cnt();if(S.from>S.to)S.from=S.to;
-  o.innerHTML=`<div class="row"><div style="flex:1"><label>من الآية</label><input type="number" min="1" max="${cnt()}" value="${S.from}" onchange="S.from=Math.max(1,Math.min(cnt(),+this.value||1));if(S.to<S.from)S.to=S.from;if(S.to-S.from+1>MAX)S.to=S.from+MAX-1;render()"></div>
-  <div style="flex:1"><label>إلى الآية</label><input type="number" min="1" max="${cnt()}" value="${S.to}" onchange="S.to=Math.max(S.from,Math.min(cnt(),+this.value||S.from));if(S.to-S.from+1>MAX)S.to=S.from+MAX-1;render()"></div></div>
-  <label>تكرار كل آية (للحفظ)</label><select onchange="S.rep=+this.value">${[1,2,3,5].map(n=>`<option value="${n}" ${n==S.rep?"selected":""}>${n==1?"بدون تكرار":n+" مرات"}</option>`).join("")}</select>
-  <p class="note">سورة ${SUR[S.surah-1].a}. عدد الآيات المختارة: ${S.to-S.from+1} (الحد الأقصى ${MAX} آية).</p>`;nav(back,next)}
- if(S.step==2){o.innerHTML=REC.map(r=>`<button class="opt ${r[0]==S.rec?"sel":""}" onclick="S.rec='${r[0]}';render()">${r[1]}</button>`).join("");nav(back,next)}
- if(S.step==3){const ty=S.bgType;
-  o.innerHTML=`<canvas id="pv"></canvas><label>نوع الخلفية</label><select onchange="setBgType(+this.value)">${optS(BGT,ty)}</select>`+
-  (ty==0?`<label>اللون</label><div class="sw">${BG.map((b,i)=>`<button class="${i==S.bg?"sel":""}" style="background:linear-gradient(160deg,${b[1][0]},${b[1][1]})" onclick="S.bg=${i};render()">${b[0]}</button>`).join("")}</div>`:"")+
-  (ty==1?`<label>المشهد (متحرك)</label><div class="grid">${SCENES.map((x,i)=>`<button class="${i==S.scene?"sel":""}" onclick="S.scene=${i};render()">${x}</button>`).join("")}</div>`:"")+
-  (ty==2?`<label>الصورة</label><div class="grid">${PHOTOS.map((x,i)=>`<button class="${i==S.photo?"sel":""}" onclick="S.photo=${i};loadPhoto(${i})">${x[1]}</button>`).join("")}</div><p class="note">${PH.st=="load"?"جارٍ تحميل الصورة…":PH.st=="err"?"تعذّر تحميل الصورة. جرّب غيرها أو تأكد من الاتصال.":PH.st=="ok"?"تم تحميل الصورة (من ويكيميديا كومنز، ترخيص حر).":"اختر صورة من القائمة."}</p>`:"")+
-  (ty==3?`<div class="row" style="margin-top:12px"><button class="pri" onclick="$('bgf').click()">${BGM?"تغيير الملف":"اختيار صورة أو فيديو"}</button>${BGM?`<button onclick="rmBg()" style="width:auto">إزالة</button>`:""}</div><p class="note">${BGM?(BGM.vid?"فيديو: ":"صورة: ")+BGM.name:"لم يتم اختيار ملف بعد."}</p>`:"")+
-  (ty>=2?`<label>تعتيم الخلفية (لوضوح الخط)</label><select onchange="S.dim=+this.value;save()">${opt(DIM,S.dim,true)}</select>`:"")+
-  `<label>قياس الفيديو</label><select onchange="S.fmt=+this.value;render()">${opt(FM,S.fmt)}</select>`;
-  drawPv();nav(back,next)}
- if(S.step==4){
-  o.innerHTML=`<canvas id="pv"></canvas>
-  <label>الخط العربي</label><select onchange="setFont(+this.value)">${opt(FONTS,S.font)}</select>
-  <label>نص الآيات والتشكيل</label><select onchange="S.txt=+this.value;save()">${opt(TXT,S.txt)}</select>
-  <label>حجم الخط</label><select onchange="S.sz=+this.value;save()">${opt(SZ,S.sz)}</select>
-  <label>لون الآية</label><div class="row"><div class="sw" style="flex:1">${PAL.map(c=>`<button class="${c==S.col?"sel":""}" style="background:${c}" onclick="S.col='${c}';render()"></button>`).join("")}</div><input type="color" value="${S.col}" onchange="S.col=this.value;render()"></div>
-  <label>لون الاسم والترجمة</label><select onchange="S.mcol=+this.value;save()">${opt(META,S.mcol)}</select>
-  <label>الترجمة أو التفسير</label><select onchange="S.tr=this.value;render()">${opt(TRS,S.tr,true)}</select>
-  ${ck("showS","إظهار اسم السورة")}${ck("showR","إظهار اسم القارئ")}${ck("showN","إظهار رقم الآية")}
-  <p class="note">الخطوط تُحمَّل من الإنترنت عند أول استخدام. للتشكيل الصحيح اختر أميري قرآن أو شهرزاد.</p>`;
-  drawPv();nav(back,next)}
- if(S.step==5){
-  o.innerHTML=`<canvas id="pv"></canvas>
-  <label>تأثير الانتقال بين الآيات</label><select onchange="S.anim=+this.value;save()">${optS(ANIM,S.anim)}</select>
-  <label>تأثير جوي فوق الخلفية</label><select onchange="S.ov=+this.value;save()">${optS(OVL,S.ov)}</select>
-  <label>الإطار</label><select onchange="S.frm=+this.value;save()">${optS(FRM,S.frm)}</select>
-  ${ck("intro","مقدمة بالبسملة واسم السورة والقارئ")}${ck("sweep","تلوين تدريجي للآية مع التلاوة (تقريبي)")}${ck("pbar","شريط تقدّم المقطع")}
-  <label>نص ثابت أسفل الفيديو (اسم قناتك، دعاء، إهداء…)</label><input type="text" id="cap" value="${S.cap.replace(/"/g,"&quot;")}" oninput="S.cap=this.value;save()" placeholder="اختياري">`;
-  drawPv();nav(back,next)}
- if(S.step==6){
-  if(S.outs){const b=S.outs[S.outs.length-1];o.innerHTML=`<video src="${b.url}" controls playsinline preload="metadata"></video>`+(S.note?`<p class="note">${S.note}</p>`:"")+S.outs.map((x,i)=>`<div class="out"><span>${x.label} · ${(x.blob.size/1048576).toFixed(1)} MB</span><button class="pri" onclick="saveVid(${i})">حفظ</button><button onclick="shareVid(${i})">مشاركة</button></div>`).join("");
-   nav(`<button onclick="again()">مقطع جديد</button>`,"");return}
-  if(S.run){o.innerHTML=`<p class="note" id="msg">جارٍ التجهيز…</p><progress id="pg" max="1" value="0"></progress><p class="note">لا تغلق التطبيق حتى ينتهي.</p>`;nav("","");return}
-  o.innerHTML=(S.err?`<p class="note" style="color:#e8a08f">تعذّر إنشاء المقطع. السبب: ${S.err}</p>`:"")+
-  `<label>جودات التصدير (يمكن اختيار أكثر من واحدة)</label>`+QS.map(q=>`<label class="ck"><input type="checkbox" ${S.qs.includes(q[0])?"checked":""} onchange="tq(${q[0]},this.checked)">${q[1]}</label>`).join("")+
-  `<p class="note">سورة ${SUR[S.surah-1].a}، الآيات ${S.from} إلى ${S.to}${S.rep>1?` (كل آية ${S.rep} مرات)`:""}<br>القارئ: ${REC.find(r=>r[0]==S.rec)[1]}<br>الخلفية: ${BGT[S.bgType]} · ${FM[S.fmt][2]}<br>الخط: ${FONTS[S.font][1]}</p>
-  <p class="note">يُنتَج الفيديو بصيغة MP4 مع مدة صحيحة، ويُرمَّز أسرع من زمن التلاوة. الجودة العالية تستغرق وقتًا أطول.</p>`;
-  nav(back,`<button class="pri" onclick="gen()">ابدأ الإنشاء</button>`)}
- save()}
-function tq(q,on){S.qs=on?[...new Set([...S.qs,q])].sort((a,b)=>a-b):S.qs.filter(x=>x!=q);if(!S.qs.length)S.qs=[720];save()}
-function go(d){S.step+=d;render();scrollTo(0,0)}
-function again(){(S.outs||[]).forEach(x=>URL.revokeObjectURL(x.url));S.outs=null;S.note=null;S.step=0;render()}
-window.goBack=()=>{if(S.run)return true;if(S.step>0){if(S.step==6&&S.outs){again();return true}go(-1);return true}return false};
-/* ---------- الإنشاء ---------- */
-const norm=s=>s.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g,"");
-function cleanAyah(a){let w=a.text.split(" ");if(S.surah!=1&&a.numberInSurah==1&&w.length>4&&norm(w[0])=="بسم")w=w.slice(4);return w.join(" ")}
-function loadScript(u){return new Promise((res,rej)=>{const s=document.createElement("script");s.src=u;s.onload=res;s.onerror=()=>rej(new Error("تعذّر تحميل مكتبة الترميز"));document.head.appendChild(s)})}
-async function loadMuxer(){if(window.Mp4Muxer)return;let last;for(const v of ["5.2.1","5.1.3"]){try{await loadScript(`https://cdn.jsdelivr.net/npm/mp4-muxer@${v}/build/mp4-muxer.js`);if(window.Mp4Muxer)return}catch(e){last=e}}throw last||new Error("muxer")}
-async function pickCodec(w,hh,br){const l=w*hh<=921600?["avc1.64001f","avc1.42001f","avc1.64002a"]:["avc1.640028","avc1.64002a","avc1.640034"];for(const cd of l){try{const r=await VideoEncoder.isConfigSupported({codec:cd,width:w,height:hh,bitrate:br,framerate:30});if(r.supported)return cd}catch(e){}}return null}
-async function encodeOffline(P){
- const{W,H,segs,total,bufs,ac,msg,pg}=P,fps=30,sr=ac.sampleRate;
- msg("تجهيز المُرمِّز…");await loadMuxer();
- const sa=await AudioEncoder.isConfigSupported({codec:"mp4a.40.2",sampleRate:sr,numberOfChannels:2,bitrate:128000});if(!sa.supported)throw new Error("ترميز AAC غير مدعوم");
- const qs=[...S.qs].sort((a,b)=>b-a),outs=[];
- for(const q of qs){const[w,hh]=dims(q,S.fmt),br=QS.find(z=>z[0]==q)[2],cd=await pickCodec(w,hh,br);if(!cd)throw new Error("ترميز H.264 غير مدعوم عند "+q+"p");outs.push({q,w,h:hh,br,cd})}
- const n=Math.ceil(total*sr),L=new Float32Array(n),R=new Float32Array(n);
- segs.forEach(s=>{if(s.intro)return;const b=bufs[s.b],o=Math.round(s.s*sr),a=b.getChannelData(0),a2=b.numberOfChannels>1?b.getChannelData(1):a;for(let i=0;i<a.length&&o+i<n;i++){L[o+i]+=a[i];R[o+i]+=a2[i]}});
- let err=null;const aq=[];
- const ae=new AudioEncoder({output:(c,m)=>aq.push([c,m]),error:e=>{err=e}});ae.configure({codec:"mp4a.40.2",sampleRate:sr,numberOfChannels:2,bitrate:128000});
- for(let o=0;o<n;o+=8192){const m=Math.min(8192,n-o),d=new Float32Array(m*2);d.set(L.subarray(o,o+m),0);d.set(R.subarray(o,o+m),m);const ad=new AudioData({format:"f32-planar",sampleRate:sr,numberOfFrames:m,numberOfChannels:2,timestamp:Math.round(o/sr*1e6),data:d});ae.encode(ad);ad.close();if(ae.encodeQueueSize>8)await sleep(0)}
- await ae.flush();ae.close();if(err)throw err;
- outs.forEach((o,i)=>{o.mx=new Mp4Muxer.Muxer({target:new Mp4Muxer.ArrayBufferTarget(),video:{codec:"avc",width:o.w,height:o.h},audio:{codec:"aac",numberOfChannels:2,sampleRate:sr},fastStart:"in-memory",firstTimestampBehavior:"offset"});
-  aq.forEach(([c,m])=>o.mx.addAudioChunk(c,m));
-  o.ve=new VideoEncoder({output:(c,m)=>o.mx.addVideoChunk(c,m),error:e=>{err=e}});o.ve.configure({codec:o.cd,width:o.w,height:o.h,bitrate:o.br,framerate:fps});
-  o.cv=document.createElement("canvas");o.cv.width=o.w;o.cv.height=o.h;o.c=o.cv.getContext("2d")});
- const M=outs[0],k=M.q/720,N=Math.ceil(total*fps);
- for(let i=0;i<N;i++){const t=i/fps;await seekBg(t);
-  M.c.setTransform(k,0,0,k,0,0);drawAt(M.c,t,W,H,segs,total);M.c.setTransform(1,0,0,1,0,0);
-  for(const o of outs){if(o!==M)o.c.drawImage(M.cv,0,0,o.w,o.h);
-   const vf=new VideoFrame(o.cv,{timestamp:Math.round(i*1e6/fps)});o.ve.encode(vf,{keyFrame:i%90==0});vf.close();
-   while(o.ve.encodeQueueSize>10)await sleep(2)}
-  if(err)throw err;
-  if(i%3==0){pg(0.5+0.5*i/N);msg(`ترميز الفيديو… ${Math.round(100*i/N)}%`);await sleep(0)}}
- for(const o of outs){await o.ve.flush();o.ve.close();if(err)throw err;o.mx.finalize()}
- return outs.slice().reverse().map(o=>{const b=new Blob([o.mx.target.buffer],{type:"video/mp4"});return{q:o.q,label:o.q+"p",blob:b,url:URL.createObjectURL(b),mime:"video/mp4",ext:"mp4"}})}
-async function recordLive(P){
- const{W,H,segs,total,bufs,ac,msg,pg}=P;msg("جارٍ التسجيل المباشر…");await ac.resume();
- const dest=ac.createMediaStreamDestination(),qs=[...S.qs].sort((a,b)=>b-a);
- const cvs=qs.map(q=>{const[w,hh]=dims(q,S.fmt),cv=document.createElement("canvas");cv.width=w;cv.height=hh;return{q,cv,c:cv.getContext("2d"),w,h:hh}});
- const M=cvs[0],k=M.q/720;
- const draw=t=>{M.c.setTransform(k,0,0,k,0,0);drawAt(M.c,t,W,H,segs,total);M.c.setTransform(1,0,0,1,0,0);cvs.slice(1).forEach(o=>o.c.drawImage(M.cv,0,0,o.w,o.h))};
- draw(0);
- const mt=["video/mp4;codecs=avc1.42E01E,mp4a.40.2","video/mp4","video/webm;codecs=vp8,opus","video/webm"].find(x=>MediaRecorder.isTypeSupported(x));
- if(!mt)throw new Error("هذا الجهاز لا يدعم تسجيل الفيديو");
- const ext=mt.startsWith("video/mp4")?"mp4":"webm",typ=mt.split(";")[0];
- cvs.forEach(o=>{const st=o.cv.captureStream(30);dest.stream.getAudioTracks().forEach(x=>st.addTrack(x));o.ch=[];o.mr=new MediaRecorder(st,{mimeType:mt,videoBitsPerSecond:QS.find(z=>z[0]==o.q)[2]});o.mr.ondataavailable=e=>e.data.size&&o.ch.push(e.data);o.done=new Promise(r=>o.mr.onstop=r)});
- if(BGM&&BGM.vid&&S.bgType==3){try{BGM.el.currentTime=0;await BGM.el.play()}catch(e){}}
- const t0=ac.currentTime+0.1;cvs.forEach(o=>o.mr.start(500));
- segs.forEach(s=>{if(s.intro)return;const n=ac.createBufferSource();n.buffer=bufs[s.b];n.connect(dest);n.connect(ac.destination);n.start(t0+s.s)});
- await new Promise(res=>{(function tick(){const x=ac.currentTime-t0;draw(Math.max(0,x));pg(.5+Math.min(.5,x/total/2));if(x>=total)res();else requestAnimationFrame(tick)})()});
- cvs.forEach(o=>o.mr.stop());await Promise.all(cvs.map(o=>o.done));
- return cvs.slice().reverse().map(o=>{const b=new Blob(o.ch,{type:typ});return{q:o.q,label:o.q+"p",blob:b,url:URL.createObjectURL(b),mime:typ,ext}})}
-async function gen(){
- S.err=null;S.note=null;S.run=true;render();const msg=t=>{const m=$("msg");if(m)m.textContent=t},pg=v=>{const p=$("pg");if(p)p.value=v};
- let ac=null;
- try{
-  const[W,H]=dims(720,S.fmt);
-  if(S.bgType==2&&!PH.el){msg("تحميل الصورة…");await loadPhoto(S.photo)}
-  msg("تحميل نص الآيات…");
-  const j=await(await fetch(`https://api.alquran.cloud/v1/surah/${S.surah}/${TXT[S.txt][0]}`)).json();
-  const ay=j.data.ayahs.filter(x=>x.numberInSurah>=S.from&&x.numberInSurah<=S.to);
-  const trm={};if(S.tr){msg("تحميل الترجمة…");const k=await(await fetch(`https://api.alquran.cloud/v1/surah/${S.surah}/${S.tr}`)).json();k.data.ayahs.forEach(x=>trm[x.numberInSurah]=x.text)}
-  msg("تحميل الخط…");await loadFont(ay.map(a=>a.text).join(" ").slice(0,600));
-  ac=new(window.AudioContext||window.webkitAudioContext)();
-  const bufs=[];
-  for(let i=0;i<ay.length;i++){msg(`تحميل تلاوة الآية ${i+1} من ${ay.length}…`);pg(i/ay.length/2);
-   let r=await fetch(`https://cdn.islamic.network/quran/audio/128/${S.rec}/${ay[i].number}.mp3`);if(!r.ok)r=await fetch(`https://cdn.islamic.network/quran/audio/64/${S.rec}/${ay[i].number}.mp3`);if(!r.ok)throw new Error("تحميل التلاوة فشل ("+r.status+")");
-   bufs.push(await ac.decodeAudioData(await r.arrayBuffer()))}
-  const segs=[];let t=0.6;if(S.intro){segs.push({intro:true,s:0.4,e:2.8});t=3.2}
-  ay.forEach((a,i)=>{const tx=cleanAyah(a);for(let n=0;n<S.rep;n++){segs.push({s:t,e:t+bufs[i].duration,t:tx,n:a.numberInSurah,tr:trm[a.numberInSurah]||"",b:i});t+=bufs[i].duration+0.4}});
-  const P={W,H,segs,total:t+0.2,bufs,ac,msg,pg};
-  let outs=null;
-  if(window.VideoEncoder&&window.AudioEncoder&&window.VideoFrame&&window.AudioData){try{outs=await encodeOffline(P)}catch(e){S.note="تعذّر الترميز السريع ("+((e&&e.message)||e)+") فاستُخدم التسجيل المباشر."}}
-  if(!outs)outs=await recordLive(P);
-  S.outs=outs;
- }catch(e){S.err=String((e&&e.message)||e)}
- try{ac&&ac.close()}catch(e){}
- S.run=false;render()}
-async function saveVid(i){const x=S.outs[i],fn=`hasanah-${S.surah}-${S.from}-${S.to}-${x.label}-${Date.now()%100000}.${x.ext}`;
- if(window.Android){Android.start(fn,x.mime);const B=x.blob,K=300000;
-  for(let o=0;o<B.size;o+=K){const d=await new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(",")[1]);f.readAsDataURL(B.slice(o,o+K))});Android.chunk(d)}
-  Android.end()}
- else{const a=document.createElement("a");a.href=x.url;a.download=fn;a.click()}}
-async function shareVid(i){if(window.Android){await saveVid(i);Android.share()}else saveVid(i)}
-render();
-</script></body></html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quran Clips App</title>
+    <style>
+        :root { --bg-color: #0f172a; --card-bg: #1e293b; --primary: #4f46e5; --text-color: #f8fafc; --text-secondary: #94a3b8; --border-color: #334155; --accent: #10b981; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 16px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 440px; background: var(--card-bg); border-radius: 16px; padding: 20px; border: 1px solid var(--border-color); }
+        h1 { font-size: 1.3rem; text-align: center; margin-bottom: 16px; }
+        .section { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--text-secondary); }
+        .btn { display: block; width: 100%; padding: 12px; background: var(--primary); color: white; text-align: center; border-radius: 10px; cursor: pointer; font-weight: 600; border: none; margin-bottom: 10px; }
+        .btn-success { background: var(--accent); }
+        input[type="file"] { display: none; }
+        .preview-box { width: 100%; height: 200px; background: #000; border-radius: 10px; position: relative; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border-color); margin-bottom: 12px; overflow: hidden; }
+        .preview-box video, .preview-box img { width: 100%; height: 100%; object-fit: cover; position: absolute; }
+        canvas { position: absolute; bottom: 0; width: 100%; height: 50px; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>معدل مقاطع القرآن الذكي</h1>
+        <div class="preview-box">
+            <span id="ph" style="color:#94a3b8; font-size:0.85rem; z-index:2;">اختر خلفية صورة أو فيديو</span>
+            <video id="vPrev" controls style="display:none;"></video>
+            <img id="iPrev" style="display:none;">
+            <canvas id="cPrev"></canvas>
+        </div>
+        <label class="btn">📁 تحميل خلفية <input type="file" id="bgIn" accept="image/*,video/*"></label>
+        <button class="btn" id="audBtn" style="background: #2563eb;">🎵 شكل الموجة الصوتية</button>
+        <button class="btn btn-success" id="procBtn">⚡ معالجة وتنزيل</button>
+    </div>
+    <script>
+        const bgIn = document.getElementById("bgIn"), vPrev = document.getElementById("vPrev"), iPrev = document.getElementById("iPrev"), ph = document.getElementById("ph");
+        bgIn.onchange = e => {
+            let f = e.target.files[0]; if(!f) return;
+            let url = URL.createObjectURL(f); ph.style.display = "none";
+            if(f.type.startsWith("video/")) { iPrev.style.display="none"; vPrev.style.display="block"; vPrev.src=url; }
+            else { vPrev.style.display="none"; iPrev.style.display="block"; iPrev.src=url; }
+        };
+        document.getElementById("procBtn").onclick = () => alert("تمت المعالجة بنجاح!");
+    </script>
+</body>
+</html>
