@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>مقاطع التلاوة</title>
+<style>
+:root{--bg:#14171f;--panel:#1c212c;--ink:#efe6d2;--dim:#9aa3b2;--acc:#7fb2a0;--line:#2b3242}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Amiri","Noto Naskh Arabic","Droid Arabic Naskh",serif;font-size:18px}
+header{padding:14px;border-bottom:1px solid var(--line)}
+.dots{display:flex;gap:6px;margin-top:8px}.dots i{flex:1;height:4px;border-radius:2px;background:var(--line)}.dots i.on{background:var(--acc)}
+h2{margin:0;font-size:20px}
+main{padding:16px 14px 100px}
+label{display:block;color:var(--dim);margin:14px 0 6px}
+button,select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+.row{display:flex;gap:10px}
+.opt{display:block;width:100%;text-align:start;margin-bottom:8px}
+.opt.sel{border-color:var(--acc);background:#22332d}
+.sw{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sw button{height:84px;border:2px solid var(--line)}.sw button.sel{border-color:var(--acc)}
+footer{position:fixed;bottom:0;inset-inline:0;display:flex;gap:10px;padding:12px 14px;background:var(--bg);border-top:1px solid var(--line)}
+.pri{background:var(--acc);color:#10231c;border-color:var(--acc)}
+.note{color:var(--dim);font-size:15px;line-height:1.8}
+video{width:100%;max-height:60vh;border-radius:10px;background:#000}
+progress{width:100%;height:10px}
+</style></head><body>
+<header><h2 id="ttl"></h2><div class="dots" id="dots"></div></header>
+<main id="out"></main>
+<footer id="ft"></footer>
+<script>
+const $=id=>document.getElementById(id);
+const LS={get:k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const REC=[["ar.alafasy","مشاري العفاسي"],["ar.husary","محمود خليل الحصري"],["ar.minshawi","محمد صديق المنشاوي"],["ar.abdulbasitmurattal","عبد الباسط عبد الصمد (مرتل)"],["ar.mahermuaiqly","ماهر المعيقلي"],["ar.hudhaify","علي الحذيفي"]];
+const BG=[["ليل",["#14171f","#27344a"]],["فجر",["#2a1f2d","#7a4a52"]],["واحة",["#0e211a","#2a5a47"]],["رمل",["#2b2418","#6b5a34"]]];
+const S=Object.assign({step:0,surah:1,from:1,to:1,rec:"ar.alafasy",bg:0,run:false,url:null},LS.get("s")||{},{step:0,run:false,url:null});
+let SUR=LS.get("sur"),MAX=15;
+const T=["اختيار السورة","اختيار الآيات","اختيار القارئ","اختيار الخلفية","إنشاء المقطع"];
+const cnt=()=>SUR?SUR[S.surah-1].n:1;
+async function surahs(){if(SUR)return;try{const j=await(await fetch("https://api.alquran.cloud/v1/surah")).json();SUR=j.data.map(x=>({a:x.name.replace("سُورَةُ ","").replace("سورة ",""),n:x.numberOfAyahs}));LS.set("sur",SUR)}catch(e){}}
+function save(){LS.set("s",{surah:S.surah,from:S.from,to:S.to,rec:S.rec,bg:S.bg})}
+function nav(l,r){$("ft").innerHTML=l+r}
+function render(){
+ $("ttl").textContent=`الخطوة ${S.step+1} من 5: ${T[S.step]}`;
+ $("dots").innerHTML=T.map((_,i)=>`<i class="${i<=S.step?"on":""}"></i>`).join("");
+ const back=S.step>0&&!S.run?`<button onclick="go(-1)">السابق</button>`:"";
+ const next=S.step<4?`<button class="pri" onclick="go(1)">التالي</button>`:"";
+ const o=$("out");
+ if(S.step==0){
+  if(!SUR){o.innerHTML='<p class="note">جارٍ تحميل قائمة السور…</p>';surahs().then(()=>{SUR?render():o.innerHTML='<p class="note">تعذّر تحميل القائمة. تحقق من الاتصال ثم أعد فتح التطبيق.</p>'});nav("","");return}
+  o.innerHTML=`<label>السورة</label><select onchange="S.surah=+this.value;S.from=1;S.to=Math.min(cnt(),MAX)">${SUR.map((x,i)=>`<option value="${i+1}" ${i+1==S.surah?"selected":""}>${i+1}. ${x.a} (${x.n} آية)</option>`).join("")}</select>`;nav("",next)}
+ if(S.step==1){
+  if(S.to>cnt())S.to=cnt();if(S.from>S.to)S.from=S.to;
+  o.innerHTML=`<div class="row"><div style="flex:1"><label>من الآية</label><input type="number" min="1" max="${cnt()}" value="${S.from}" onchange="S.from=Math.max(1,Math.min(cnt(),+this.value||1));if(S.to<S.from)S.to=S.from;if(S.to-S.from+1>MAX)S.to=S.from+MAX-1;render()"></div>
+  <div style="flex:1"><label>إلى الآية</label><input type="number" min="1" max="${cnt()}" value="${S.to}" onchange="S.to=Math.max(S.from,Math.min(cnt(),+this.value||S.from));if(S.to-S.from+1>MAX)S.to=S.from+MAX-1;render()"></div></div>
+  <p class="note">السورة: ${SUR[S.surah-1].a}. عدد الآيات المختارة: ${S.to-S.from+1} (الحد الأقصى ${MAX} آية للمقطع الواحد).</p>`;nav(back,next)}
+ if(S.step==2){o.innerHTML=REC.map(r=>`<button class="opt ${r[0]==S.rec?"sel":""}" onclick="S.rec='${r[0]}';render()">${r[1]}</button>`).join("");nav(back,next)}
+ if(S.step==3){o.innerHTML=`<div class="sw">${BG.map((b,i)=>`<button class="${i==S.bg?"sel":""}" style="background:linear-gradient(160deg,${b[1][0]},${b[1][1]})" onclick="S.bg=${i};render()">${b[0]}</button>`).join("")}</div><p class="note">المقطع عمودي بقياس 720×1280 مناسب للجوال.</p>`;nav(back,next)}
+ if(S.step==4){
+  if(S.url){o.innerHTML=`<video src="${S.url}" controls playsinline></video><p class="note">تم إنشاء المقطع.</p>`;
+   nav(`<button onclick="again()">مقطع جديد</button>`,`<button class="pri" onclick="saveVid()">حفظ في الجهاز</button>`);return}
+  if(S.run){o.innerHTML=`<p class="note" id="msg">جارٍ التجهيز…</p><progress id="pg" max="1" value="0"></progress><p class="note">لا تغلق التطبيق حتى ينتهي. يُسجَّل المقطع بالزمن الحقيقي لطول التلاوة.</p>`;nav("","");return}
+  o.innerHTML=`<p class="note">سورة ${SUR[S.surah-1].a}، الآيات ${S.from} إلى ${S.to}<br>القارئ: ${REC.find(r=>r[0]==S.rec)[1]}<br>الخلفية: ${BG[S.bg][0]}</p>
+  <p class="note">يحتاج الإنشاء إلى اتصال بالإنترنت لتحميل التلاوة، ويستغرق بقدر طولها.</p>`;
+  nav(back,`<button class="pri" onclick="gen()">ابدأ الإنشاء</button>`)}
+ save()}
+function go(d){S.step+=d;render();scrollTo(0,0)}
+function again(){if(S.url)URL.revokeObjectURL(S.url);S.url=null;S.step=0;render()}
+window.goBack=()=>{if(S.run)return true;if(S.step>0){if(S.step==4&&S.url){again();return true}go(-1);return true}return false};
+function wrap(c,t,w){const ws=t.split(" "),L=[];let l="";for(const x of ws){const y=l?l+" "+x:x;if(c.measureText(y).width>w&&l){L.push(l);l=x}else l=y}if(l)L.push(l);return L}
+function frame(c,seg,name){
+ const[a,b]=BG[S.bg][1].length?BG[S.bg][1]:[0,0];const g=c.createLinearGradient(0,0,720,1280);g.addColorStop(0,BG[S.bg][1][0]);g.addColorStop(1,BG[S.bg][1][1]);
+ c.fillStyle=g;c.fillRect(0,0,720,1280);
+ c.strokeStyle="rgba(239,230,210,.35)";c.lineWidth=2;c.strokeRect(30,30,660,1220);
+ if(!seg)return;
+ c.direction="rtl";c.textAlign="center";c.fillStyle="#efe6d2";
+ let fs=60,L;for(;fs>=26;fs-=4){c.font=fs+"px Amiri,'Noto Naskh Arabic','Droid Arabic Naskh',serif";L=wrap(c,seg.t,580);if(L.length*fs*1.9<900)break}
+ const lh=fs*1.9,y0=640-(L.length*lh)/2+lh*0.7;L.forEach((x,i)=>c.fillText(x,360,y0+i*lh));
+ c.font="30px Amiri,'Noto Naskh Arabic',serif";c.fillStyle="rgba(239,230,210,.7)";c.fillText(`${name} · الآية ${seg.n}`,360,1180)}
+async function gen(){
+ if(!window.MediaRecorder){alert("هذا الجهاز لا يدعم تسجيل الفيديو");return}
+ S.run=true;render();const msg=t=>{const m=$("msg");if(m)m.textContent=t},pg=v=>{const p=$("pg");if(p)p.value=v};
+ try{
+  const name=SUR[S.surah-1].a;
+  msg("تحميل نص الآيات…");
+  const j=await(await fetch(`https://api.alquran.cloud/v1/surah/${S.surah}/quran-uthmani`)).json();
+  const ay=j.data.ayahs.filter(x=>x.numberInSurah>=S.from&&x.numberInSurah<=S.to);
+  const ac=new(window.AudioContext||window.webkitAudioContext)();await ac.resume();
+  const bufs=[];
+  for(let i=0;i<ay.length;i++){msg(`تحميل تلاوة الآية ${i+1} من ${ay.length}…`);pg(i/ay.length/2);
+   const r=await fetch(`https://cdn.islamic.network/quran/audio/128/${S.rec}/${ay[i].number}.mp3`);if(!r.ok)throw new Error("audio");
+   bufs.push(await ac.decodeAudioData(await r.arrayBuffer()))}
+  const dest=ac.createMediaStreamDestination(),cv=document.createElement("canvas");cv.width=720;cv.height=1280;const c=cv.getContext("2d");
+  const segs=[];let t=0.6;ay.forEach((a,i)=>{segs.push({s:t,e:t+bufs[i].duration,t:a.text.replace(/^\u0628\u0650\u0633\u0652\u0645\u0650[^ ]* [^ ]* [^ ]* [^ ]* /,""),n:a.numberInSurah});t+=bufs[i].duration+0.4});
+  const total=t;frame(c,null,name);
+  const st=cv.captureStream(30);dest.stream.getAudioTracks().forEach(x=>st.addTrack(x));
+  const mt=["video/webm;codecs=vp8,opus","video/webm"].find(x=>MediaRecorder.isTypeSupported(x));
+  const mr=new MediaRecorder(st,{mimeType:mt,videoBitsPerSecond:2500000}),ch=[];
+  mr.ondataavailable=e=>e.data.size&&ch.push(e.data);
+  const done=new Promise(r=>mr.onstop=r);
+  const t0=ac.currentTime+0.1;mr.start(1000);
+  segs.forEach((s,i)=>{const n=ac.createBufferSource();n.buffer=bufs[i];n.connect(dest);n.connect(ac.destination);n.start(t0+s.s)});
+  msg("جارٍ تسجيل المقطع…");
+  await new Promise(res=>{(function tick(){const x=ac.currentTime-t0;const sg=segs.find(s=>x>=s.s-0.2&&x<s.e+0.3);frame(c,sg,name);pg(.5+Math.min(.5,x/total/2));
+   if(x>=total){res()}else requestAnimationFrame(tick)})()});
+  mr.stop();await done;ac.close();
+  S.url=URL.createObjectURL(new Blob(ch,{type:"video/webm"}));S.blob=new Blob(ch,{type:"video/webm"});
+ }catch(e){alert("تعذّر إنشاء المقطع. تحقق من الاتصال وأعد المحاولة.")}
+ S.run=false;render()}
+async function saveVid(){
+ const fn=`quran-${S.surah}-${S.from}-${S.to}.webm`;
+ if(window.Android){Android.start(fn);const B=S.blob,K=300000;
+  for(let o=0;o<B.size;o+=K){const d=await new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(",")[1]);f.readAsDataURL(B.slice(o,o+K))});Android.chunk(d)}
+  Android.end()}
+ else{const a=document.createElement("a");a.href=S.url;a.download=fn;a.click()}}
+render();
+</script></body></html>
