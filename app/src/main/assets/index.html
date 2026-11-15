@@ -71,6 +71,8 @@ video{width:100%;max-height:52vh;border-radius:12px;background:#000}progress{wid
 <script>
 const $=id=>document.getElementById(id);
 const LS={get:k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+// Network requests are bounded so a stalled CDN cannot freeze the workflow indefinitely.
+async function fetchSafe(url,opts={}){const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),25000);try{return await fetch(url,{...opts,signal:ctl.signal,cache:opts.cache||"force-cache"})}finally{clearTimeout(timer)}}
 const frac=x=>x-Math.floor(x),h=n=>frac(Math.sin(n*127.1+311.7)*43758.5453),ease=x=>x*x*(3-2*x),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const MC=new MessageChannel();let yres=null;MC.port1.onmessage=()=>{const r=yres;yres=null;r&&r()};const yld=()=>new Promise(r=>{yres=r;MC.port2.postMessage(0)});
 const AR=n=>String(n).replace(/\d/g,d=>"٠١٢٣٤٥٦٧٨٩"[d]);
@@ -108,12 +110,52 @@ function buildRecs(api){const ids=api?new Set(api.map(x=>x.identifier)):null,out
  if(api)api.forEach(x=>{if(!RD[x.identifier]&&/^ar\./.test(x.identifier))out.push({id:x.identifier,name:x.name||x.englishName||x.identifier,cat:"أخرى",bio:"قارئ من مكتبة التلاوات المتاحة."})});
  return out.length?out:Object.keys(RD).map(id=>({id,name:RD[id][0],cat:RD[id][1],bio:RD[id][2]}))}
 RECS=buildRecs(LS.get("recs"));
-async function refreshRecs(){try{const j=await(await fetch("https://api.alquran.cloud/v1/edition?format=audio&type=versebyverse")).json();const a=j.data.filter(x=>/^ar\./.test(x.identifier)).map(x=>({identifier:x.identifier,name:x.name,englishName:x.englishName}));if(a.length>3){LS.set("recs",a);RECS=buildRecs(a);if(S.step==2)renderRecs()}}catch(e){}}
+async function refreshRecs(){try{const j=await(await fetchSafe("https://api.alquran.cloud/v1/edition?format=audio&type=versebyverse")).json();const a=j.data.filter(x=>/^ar\./.test(x.identifier)).map(x=>({identifier:x.identifier,name:x.name,englishName:x.englishName}));if(a.length>3){LS.set("recs",a);RECS=buildRecs(a);if(S.step==2)renderRecs()}}catch(e){}}
 const recName=id=>(RECS.find(r=>r.id==id)||{name:id}).name;
 const getPh=id=>RPH[id]!==undefined?RPH[id]:(RPH[id]=LS.get("rp:"+id)||"");
 const SA=typeof Audio!="undefined"?new Audio():{pause(){},play(){return Promise.resolve()}};let SAID=null;
 function stopSample(){try{SA.pause()}catch(e){}SAID=null;sel("[data-p]",()=>false)}
 function playSample(id){if(SAID==id){stopSample();return}stopSample();SAID=id;SA.src=`https://cdn.islamic.network/quran/audio/64/${id}/2.mp3`;SA.onended=stopSample;SA.onerror=()=>{stopSample();toast("تعذّر تشغيل العينة، تحقق من الاتصال")};const p=SA.play();p&&p.catch&&p.catch(()=>{});sel("[data-p]",b=>b.dataset.p==id)}
+// مشغل مستقل للمصاحف الكاملة: يعتمد على فهرس MP3Quran الرسمي ولا يفترض معرفات أو روابط ثابتة.
+let EXTRA_READERS=[], EXTRA_READY=false, EXTRA_SURAH=+(LS.get("extraSurah")||1), EXTRA_CURRENT=LS.get("extraCurrent")||null;
+const MOSSAD_CHANNEL="https://www.youtube.com/@9li9";
+function readerMatch(name, terms){const z=sn(name||"");return terms.some(t=>z.includes(sn(t)))}
+async function loadExtraReaders(){
+ if(EXTRA_READY)return;EXTRA_READY=true;
+ try{
+  const j=await(await fetchSafe("https://www.mp3quran.net/api/v3/reciters?language=ar",{cache:"no-store"})).json();
+  const all=j.reciters||[];
+  const add=(terms,label)=>{
+   const r=all.find(x=>readerMatch(x.name,terms)&&Array.isArray(x.moshaf)&&x.moshaf.some(m=>m.server&&/^https:\/\//i.test(m.server)));
+   if(!r)return null;
+   const m=r.moshaf.find(x=>x.server&&/^https:\/\//i.test(x.server)&&x.surah_list);
+   return m?{id:String(r.id),name:label,server:m.server.replace(/\/?$/,"/"),surahs:(m.surah_list||"").split(",").map(Number),source:"mp3quran"}:null;
+  };
+  const y=add(["ياسر الدوسري","ياسر الدوسري"],"ياسر الدوسري");
+  const i=add(["إسلام صبحي","اسلام صبحي"],"إسلام صبحي");
+  EXTRA_READERS=[y,i].filter(Boolean);
+  // عبد الرحمن مسعد لا يظهر ضمن فهرس المصاحف الكاملة في MP3Quran؛ لا نضع رابط MP3 غير موثوق.
+  renderExtraReaders();
+ }catch(e){EXTRA_READY=false;const el=$("extraReaders");if(el)el.innerHTML='<p class="note">تعذر تحميل فهرس القراء الإضافيين. تحقق من الاتصال ثم أعد المحاولة.</p><button class="chip" onclick="EXTRA_READY=false;loadExtraReaders()">إعادة المحاولة</button>'}
+}
+function extraAudioUrl(r,surah){return r.server+String(surah).padStart(3,"0")+".mp3"}
+function extraPlay(id){
+ const r=EXTRA_READERS.find(x=>x.id===String(id));if(!r)return;
+ const surah=+( $("extraSurah")?.value || EXTRA_SURAH || 1 );
+ if(!r.surahs.includes(surah)){toast("هذه السورة غير متاحة لهذا المصحف");return}
+ const title="سورة "+(SUR?.[surah-1]?.a||surah);
+ const url=extraAudioUrl(r,surah);
+ EXTRA_CURRENT={id:r.id,name:r.name,surah,url,title};LS.set("extraCurrent",EXTRA_CURRENT);EXTRA_SURAH=surah;LS.set("extraSurah",surah);
+ if(window.Android&&Android.playBackground){Android.playBackground(url,title,r.name);toast("بدأ التشغيل في الخلفية")}
+ else{const a=new Audio(url);a.play().catch(()=>toast("تعذر تشغيل الصوت"));window._extraAudio=a;toast("بدأ التشغيل؛ قد يتوقف عند إغلاق الصفحة")}
+}
+function extraControl(action){if(!window.Android)return;try{if(action==="pause")Android.pauseBackground();if(action==="resume")Android.resumeBackground();if(action==="stop")Android.stopBackground()}catch(e){}}
+function renderExtraReaders(){
+ const el=$("extraReaders");if(!el)return;
+ const surahOptions=(SUR||[]).map((x,i)=>`<option value="${i+1}" ${i+1===EXTRA_SURAH?"selected":""}>${x.a}</option>`).join("");
+ const cards=EXTRA_READERS.map(r=>`<div class="rc"><div class="av">${r.name[0]}</div><div class="rb"><b>${r.name}</b><small>مصحف كامل · MP3Quran</small><p>تلاوة السورة كاملة مع إمكانية مواصلة الاستماع بعد الخروج من التطبيق.</p></div><button class="pri" onclick="extraPlay('${r.id}')">▶ استماع</button></div>`).join("");
+ el.innerHTML=`<div class="div">قراء إضافيون</div><label class="note" for="extraSurah">اختر السورة للاستماع</label><select id="extraSurah" onchange="EXTRA_SURAH=+this.value;LS.set('extraSurah',EXTRA_SURAH)" style="width:100%;padding:12px;border-radius:12px;background:var(--bg2);color:var(--ink);border:1px solid var(--line);font:inherit">${surahOptions}</select>${cards||'<p class="note">لم يُعثر على ياسر الدوسري أو إسلام صبحي في فهرس الصوت المتاح حالياً.</p>'}<div class="chips" style="margin-top:8px"><button class="chip" onclick="extraControl('pause')">⏸ إيقاف مؤقت</button><button class="chip" onclick="extraControl('resume')">▶ متابعة</button><button class="chip" onclick="extraControl('stop')">■ إيقاف</button></div><div class="rc"><div class="av">ع</div><div class="rb"><b>عبد الرحمن مسعد</b><small>المصدر الرسمي</small><p>لا تتوفر له روابط MP3 مباشرة موثقة ضمن فهرس MP3Quran؛ يمكنك فتح قناته الرسمية على YouTube من هنا.</p></div><button onclick="Android&&Android.openExternal('${MOSSAD_CHANNEL}')">فتح</button></div><p class="note">هذه الإضافة مخصصة للاستماع إلى السورة كاملة. تبقى قائمة إنشاء الفيديو بالقراء المتاحين آيةً بآية كما هي، حتى لا تُستخدم تسجيلات المصحف الكامل بطريقة تقطع التلاوة أو تزامن الآيات بشكل خاطئ. إذا تعذر تحميل الفهرس اضغط إعادة المحاولة.</p><button class="chip" onclick="EXTRA_READY=false;loadExtraReaders()">إعادة تحميل القراء</button>`;
+}
 function toggleFav(id){FAV=FAV.includes(id)?FAV.filter(x=>x!=id):[...FAV,id];LS.set("favs",FAV);renderRecs()}
 function setDef(id){DEFREC=DEFREC==id?null:id;LS.set("defrec",DEFREC);if(DEFREC){S.rec=id;save()}toast(DEFREC?"تم تعيين القارئ الافتراضي":"أُلغي القارئ الافتراضي");renderRecs()}
 function pickRec(id){S.rec=id;save();sel(".rc",b=>b.dataset.id==id)}
@@ -375,7 +417,7 @@ function render(){
   if(S.to>cnt())S.to=cnt();if(S.from>S.to)S.from=S.to;
   const stp=(k,l)=>`<div class="stp"><span>${l}</span><div><button onclick="adj('${k}',-1)">−</button><b>${AR(S[k])}</b><button onclick="adj('${k}',1)">+</button></div></div>`;
   o.innerHTML=sec("list",`سورة ${SUR[S.surah-1].a} · ${AR(cnt())} آية`,`${stp("from","من الآية")}${stp("to","إلى الآية")}<p class="note">عدد الآيات المختارة: ${AR(S.to-S.from+1)} (الحد الأقصى ${AR(MAX)})</p>`)+sec("","تكرار كل آية (للحفظ)",chips("rep",[[1,"بدون"],[2,"مرتان"],[3,"٣ مرات"],[5,"٥ مرات"]]));nav(back,next)}
- if(S.step==2){o.innerHTML=sec("mic","اختر القارئ",`<input type="text" placeholder="ابحث عن قارئ…" value="${RQ.replace(/"/g,"&quot;")}" oninput="RQ=this.value;renderRecs()"><div class="chips" id="rcats" style="margin:12px 0">${RCATS.map((x,i)=>`<button class="chip ${i==RCAT?"sel":""}" onclick="setRCat(${i})">${x}</button>`).join("")}</div><div id="rl"></div><p class="note">▶ للاستماع إلى عينة قبل الاختيار · ♥ للمفضلة · ★ لجعله القارئ الافتراضي · اضغط على الصورة لإضافة صورة القارئ من معرضك.</p>`);renderRecs();nav(back,next)}
+ if(S.step==2){o.innerHTML=sec("mic","اختر القارئ",`<input type="text" placeholder="ابحث عن قارئ…" value="${RQ.replace(/"/g,"&quot;")}" oninput="RQ=this.value;renderRecs()"><div class="chips" id="rcats" style="margin:12px 0">${RCATS.map((x,i)=>`<button class="chip ${i==RCAT?"sel":""}" onclick="setRCat(${i})">${x}</button>`).join("")}</div><div id="rl"></div><p class="note">▶ للاستماع إلى عينة قبل الاختيار · ♥ للمفضلة · ★ لجعله القارئ الافتراضي · اضغط على الصورة لإضافة صورة القارئ من معرضك.</p><div id="extraReaders"><p class="note">جارٍ تحميل القراء الإضافيين…</p></div>`);renderRecs();loadExtraReaders();nav(back,next)}
  if(S.step==3){const ty=S.bgType;let body="";
   if(ty==0)body=`<div class="bgs fade">${BG.map((b,i)=>`<button class="${i==S.bg?"sel":""}" data-k="bg" data-v="${i}" style="background:linear-gradient(160deg,${b[1][0]},${b[1][1]});${i==8?"color:#14382b":""}" onclick="pick('bg',${i},false)">${b[0]}</button>`).join("")}</div>`;
   if(ty==1)body=`<div class="fade">${chips("scene",SCENES)}</div>`;
@@ -405,7 +447,7 @@ function render(){
   drawPv();nav(back,next)}
  if(S.step==6){
   if(S.outs){const b=S.outs[S.cur];
-   o.innerHTML=sec("play","مراجعة المقطع قبل الحفظ",`<video id="rv" src="${b.url}" controls playsinline preload="auto"></video><p class="note" id="vinfo"></p>${S.note?`<p class="note">${S.note}</p>`:""}<div class="chips" style="margin-top:10px">${S.outs.map((x,i)=>`<button class="chip ${i==S.cur?"sel":""}" data-c="${i}" onclick="prev(${i})">${x.label}</button>`).join("")}</div>`)+
+   o.innerHTML=sec("play","مراجعة المقطع قبل الحفظ",`<video id="rv" src="${b.url}" controls playsinline preload="metadata" onloadedmetadata="restorePreview(this)" ontimeupdate="storePreview(this)"></video><p class="note" id="vinfo"></p>${S.note?`<p class="note">${S.note}</p>`:""}<div class="chips" style="margin-top:10px">${S.outs.map((x,i)=>`<button class="chip ${i==S.cur?"sel":""}" data-c="${i}" onclick="prev(${i})">${x.label}</button>`).join("")}</div>`)+
    sec("","الحفظ",`${S.outs.map((x,i)=>`<div class="out"><span>${x.label} · ${(x.blob.size/1048576).toFixed(1)} MB <small id="sp${i}" style="color:var(--acc)"></small></span><button class="pri" onclick="saveVid(${i})">حفظ</button><button onclick="shareVid(${i})">مشاركة</button></div>`).join("")}${S.outs.length>1?`<button class="wide" onclick="saveAll()">حفظ كل الجودات</button>`:""}`);
    const rv=$("rv");rv.onloadedmetadata=()=>{const d=Math.round(rv.duration);$("vinfo").textContent=isFinite(d)?`المدة: ${Math.floor(d/60)}:${String(d%60).padStart(2,"0")}`:""};rv.onerror=()=>{$("vinfo").textContent="تعذّر تشغيل المعاينة هنا، لكن يمكنك الحفظ وتجربته من المعرض."};
    nav(`<button onclick="edit()">تعديل</button>`,`<button class="pri" onclick="again()">مقطع جديد</button>`);return}
@@ -474,9 +516,9 @@ const MEM=new Map(),IDB={db:null,async open(){if(this.db)return this.db;return t
  async get(k){try{const d=await this.open();return await new Promise(res=>{const q=d.transaction("a").objectStore("a").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)})}catch(e){return null}},
  async put(k,v){try{const d=await this.open();d.transaction("a","readwrite").objectStore("a").put(v,k)}catch(e){}}};
 async function getAudio(rec,num){const k=`a:${rec}:${num}`;let ab=MEM.get(k)||await IDB.get(k);
- if(!ab){let r=await fetch(`https://cdn.islamic.network/quran/audio/128/${rec}/${num}.mp3`);if(!r.ok)r=await fetch(`https://cdn.islamic.network/quran/audio/64/${rec}/${num}.mp3`);if(!r.ok)throw new Error("تحميل التلاوة فشل ("+r.status+")");ab=await r.arrayBuffer();IDB.put(k,ab.slice(0))}
- MEM.set(k,ab.slice(0));return ab}
-async function cj(url){const k="j:"+url,c=LS.get(k);if(c)return c;const j=await(await fetch(url)).json();LS.set(k,j);return j}
+ if(!ab){let r=await fetchSafe(`https://cdn.islamic.network/quran/audio/128/${rec}/${num}.mp3`);if(!r.ok)r=await fetchSafe(`https://cdn.islamic.network/quran/audio/64/${rec}/${num}.mp3`);if(!r.ok)throw new Error("تحميل التلاوة فشل ("+r.status+")");ab=await r.arrayBuffer();IDB.put(k,ab.slice(0))}
+ MEM.set(k,ab.slice(0));while(MEM.size>18)MEM.delete(MEM.keys().next().value);return ab}
+async function cj(url){const k="j:"+url,c=LS.get(k);if(c)return c;const j=await(await fetchSafe(url)).json();LS.set(k,j);return j}
 async function gen(){
  if(S.run)return;S.err=null;S.note=null;S.run=true;render();const msg=t=>{const m=$("msg");if(m)m.textContent=t},pg=v=>{const p=$("pg");if(p)p.value=v};
  let ac=null;
@@ -490,7 +532,7 @@ async function gen(){
   msg("تحميل الخط…");await loadFont(ay.map(a=>a.text).join(" ").slice(0,600));
   ac=new(window.AudioContext||window.webkitAudioContext)();
   let done=0;msg(`تحميل التلاوة 0 / ${ay.length}…`);
-  const bufs=await Promise.all(ay.map(async a=>{const b=await ac.decodeAudioData(await getAudio(S.rec,a.number));done++;msg(`تحميل التلاوة ${done} / ${ay.length}…`);pg(done/ay.length/2);return b}));
+  const bufs=new Array(ay.length);let cursor=0;const workers=Array.from({length:Math.min(2,ay.length)},async()=>{while(true){const i=cursor++;if(i>=ay.length)return;const a=ay[i],raw=await getAudio(S.rec,a.number);bufs[i]=await ac.decodeAudioData(raw.slice(0));done++;msg(`تحميل التلاوة ${done} / ${ay.length}…`);pg(done/ay.length/2)}});await Promise.all(workers);
   const segs=[];let t=0.6;if(S.intro){segs.push({intro:true,s:0.4,e:2.8});t=3.2}
   ay.forEach((a,i)=>{const tx=cleanAyah(a);for(let n=0;n<S.rep;n++){segs.push({s:t,e:t+bufs[i].duration,t:tx,n:a.numberInSurah,tr:trm[a.numberInSurah]||"",b:i});t+=bufs[i].duration+S.gap}});
   const total=t+0.2,mix=buildMix(segs,bufs,ac.sampleRate,total);AUD={L:mix.L,sr:ac.sampleRate};
@@ -502,13 +544,16 @@ async function gen(){
  }catch(e){S.err=String((e&&e.message)||e)}
  AUD=null;try{ac&&ac.close()}catch(e){}
  S.run=false;render()}
+function previewKey(){return `preview:${S.surah}:${S.from}:${S.to}:${S.cur}`}
+function storePreview(v){if(v&&Number.isFinite(v.currentTime))LS.set(previewKey(),v.currentTime)}
+function restorePreview(v){const t=LS.get(previewKey());if(Number.isFinite(t)&&t>0&&t<(v.duration||0))v.currentTime=t}
 async function saveVid(i){const x=S.outs[i],fn=`hasanah-${S.surah}-${S.from}-${S.to}-${x.label}-${Date.now()%100000}.${x.ext}`,set=t=>{const e=$("sp"+i);if(e)e.textContent=t};
- if(window.Android){Android.start(fn,x.mime);const B=x.blob,K=3145728;
+ if(window.Android){if(Android.start(fn,x.mime)===false){set(" · تعذر بدء الحفظ");return}const B=x.blob,K=3145728;
   for(let o=0;o<B.size;o+=K){const d=await new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result.split(",")[1]);f.readAsDataURL(B.slice(o,o+K))});Android.chunk(d);set(" · "+Math.round(100*Math.min(B.size,o+K)/B.size)+"%")}
   Android.end();set(" · ✓ تم الحفظ")}
  else{const a=document.createElement("a");a.href=x.url;a.download=fn;a.click();set(" · ✓")}}
 async function saveAll(){for(let i=0;i<S.outs.length;i++)await saveVid(i)}
 async function shareVid(i){if(window.Android){await saveVid(i);Android.share()}else saveVid(i)}
 try{const th=LS.get("theme")||((window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches)?"light":"dark");setTheme(th)}catch(e){setTheme("dark")}
-loadFont();render();refreshRecs();
+loadFont();render();refreshRecs();try{if(window.Android&&Android.restoreBackground)Android.restoreBackground()}catch(e){}
 </script></body></html>
