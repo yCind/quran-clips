@@ -128,7 +128,8 @@ class MainActivity : Activity() {
     }
 
     private fun createWebView(): WebView = WebView(this).apply {
-        setBackgroundColor(Color.rgb(20, 23, 31))
+        setBackgroundColor(Color.rgb(7, 25, 18))
+        setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
         settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -142,7 +143,12 @@ class MainActivity : Activity() {
             allowFileAccess = false
             allowContentAccess = true
             mediaPlaybackRequiresUserGesture = false
+            // Keep local app assets and DOM storage enabled; avoid file URL access.
+            loadsImagesAutomatically = true
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
         }
+        if (android.os.Build.VERSION.SDK_INT >= 26) setRendererPriorityPolicy(RENDERER_PRIORITY_BOUND, true)
         addJavascriptInterface(Bridge(this@MainActivity), "Android")
         webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: android.webkit.WebResourceRequest) =
@@ -151,9 +157,13 @@ class MainActivity : Activity() {
                 if (isFinishing || isDestroyed) return true
                 val parent = view.parent as? ViewGroup
                 parent?.removeView(view)
+                view.stopLoading()
+                view.removeJavascriptInterface("Android")
+                view.removeAllViews()
                 view.destroy()
                 web = createWebView()
-                parent?.addView(web, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                val params = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                if (parent != null) parent.addView(web, params) else setContentView(web)
                 web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
                 return true
             }
@@ -196,6 +206,9 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
     @Deprecated("") override fun onBackPressed() {
-        web.evaluateJavascript("window.goBack&&window.goBack()") { result -> if (result != "true") super.onBackPressed() }
+        if (!::web.isInitialized || isFinishing || isDestroyed) { super.onBackPressed(); return }
+        web.evaluateJavascript("window.goBack&&window.goBack()") { result ->
+            if (result != "true" && !isFinishing && !isDestroyed) super.onBackPressed()
+        }
     }
 }

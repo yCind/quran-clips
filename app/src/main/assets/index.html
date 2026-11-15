@@ -63,6 +63,14 @@ video{width:100%;max-height:52vh;border-radius:12px;background:#000}progress{wid
 #out .card:nth-of-type(2){animation-delay:.06s}#out .card:nth-of-type(3){animation-delay:.12s}#out .card:nth-of-type(4){animation-delay:.18s}#out .card:nth-of-type(5){animation-delay:.24s}
 @media(min-width:820px){#out[data-pv]{max-width:1080px;display:grid;grid-template-columns:minmax(300px,.85fr) 1.15fr;gap:0 20px;align-items:start}
 #out[data-pv] #pv{grid-column:1;grid-row:1/span 30;position:sticky;top:104px;max-height:74vh;margin:0}#out[data-pv]>section{grid-column:2}.bgs{grid-template-columns:repeat(5,1fr)}.list{max-height:60vh}}
+
+/* refined compact visual system */
+header{background:linear-gradient(135deg,color-mix(in srgb,var(--bg) 94%,var(--acc) 6%),var(--bg));box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.card{border-radius:20px;box-shadow:0 10px 28px rgba(0,0,0,.14);backdrop-filter:blur(8px)}
+button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.rc{min-height:82px}.rc:active{transform:scale(.995)}
+.tpl{box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 </style></head><body>
 <header><div class="hd"><div class="logo"><svg width="28" height="28" viewBox="0 0 108 108"><circle cx="50" cy="54" r="30" fill="#d9b84f"/><circle cx="62" cy="46" r="26" fill="#0a2018"/><path d="M58 36L58 62L78 49Z" fill="#f6f0de"/></svg></div><div><div class="brand">حسنة</div><div class="sub" id="ttl"></div></div><div class="sp"></div><button class="ib" id="thm" onclick="toggleTheme()" aria-label="الوضع"></button></div><div class="trk"><i id="prog"></i></div></header>
 <main id="out"></main><footer id="ft"></footer><div id="toast"></div>
@@ -101,12 +109,13 @@ const RD={"ar.alafasy":["مشاري راشد العفاسي","خليجي","قا�
 "ar.ahmedajamy":["أحمد العجمي","خليجي","قارئ سعودي معروف بتلاوته المتأنية."],
 "ar.hanirifai":["هاني الرفاعي","خليجي","قارئ سعودي، إمام وخطيب."],
 "ar.abdullahbasfar":["عبد الله بصفر","خليجي","قارئ سعودي ومدرّس للقرآن الكريم."],
-"ar.aymanswoaid":["أيمن سويد","أخرى","قارئ ومقرئ سوري معروف بإتقانه للتجويد."]};
+"ar.aymanswoaid":["أيمن سويد","أخرى","قارئ ومقرئ سوري معروف بإتقانه للتجويد."],
+"yd.yasser":["ياسر الدوسري","خليجي","قارئ سعودي، إمام وخطيب، معروف بتلاوته المؤثرة."]};
 const RCATS=["الكل","المفضلة","الحرمان","مصر","خليجي","أخرى"];
 let RECS=[],RCAT=0,RQ="",RPID=null;const RPH={};
 let FAV=LS.get("favs")||[],DEFREC=LS.get("defrec")||null;
 function buildRecs(api){const ids=api?new Set(api.map(x=>x.identifier)):null,out=[];
- for(const id of Object.keys(RD)){if(ids&&!ids.has(id))continue;out.push({id,name:RD[id][0],cat:RD[id][1],bio:RD[id][2]})}
+ for(const id of Object.keys(RD)){if(ids&&!ids.has(id)&&id!=="yd.yasser")continue;out.push({id,name:RD[id][0],cat:RD[id][1],bio:RD[id][2]})}
  if(api)api.forEach(x=>{if(!RD[x.identifier]&&/^ar\./.test(x.identifier))out.push({id:x.identifier,name:x.name||x.englishName||x.identifier,cat:"أخرى",bio:"قارئ من مكتبة التلاوات المتاحة."})});
  return out.length?out:Object.keys(RD).map(id=>({id,name:RD[id][0],cat:RD[id][1],bio:RD[id][2]}))}
 RECS=buildRecs(LS.get("recs"));
@@ -115,47 +124,7 @@ const recName=id=>(RECS.find(r=>r.id==id)||{name:id}).name;
 const getPh=id=>RPH[id]!==undefined?RPH[id]:(RPH[id]=LS.get("rp:"+id)||"");
 const SA=typeof Audio!="undefined"?new Audio():{pause(){},play(){return Promise.resolve()}};let SAID=null;
 function stopSample(){try{SA.pause()}catch(e){}SAID=null;sel("[data-p]",()=>false)}
-function playSample(id){if(SAID==id){stopSample();return}stopSample();SAID=id;SA.src=`https://cdn.islamic.network/quran/audio/64/${id}/2.mp3`;SA.onended=stopSample;SA.onerror=()=>{stopSample();toast("تعذّر تشغيل العينة، تحقق من الاتصال")};const p=SA.play();p&&p.catch&&p.catch(()=>{});sel("[data-p]",b=>b.dataset.p==id)}
-// مشغل مستقل للمصاحف الكاملة: يعتمد على فهرس MP3Quran الرسمي ولا يفترض معرفات أو روابط ثابتة.
-let EXTRA_READERS=[], EXTRA_READY=false, EXTRA_SURAH=+(LS.get("extraSurah")||1), EXTRA_CURRENT=LS.get("extraCurrent")||null;
-const MOSSAD_CHANNEL="https://www.youtube.com/@9li9";
-function readerMatch(name, terms){const z=sn(name||"");return terms.some(t=>z.includes(sn(t)))}
-async function loadExtraReaders(){
- if(EXTRA_READY)return;EXTRA_READY=true;
- try{
-  const j=await(await fetchSafe("https://www.mp3quran.net/api/v3/reciters?language=ar",{cache:"no-store"})).json();
-  const all=j.reciters||[];
-  const add=(terms,label)=>{
-   const r=all.find(x=>readerMatch(x.name,terms)&&Array.isArray(x.moshaf)&&x.moshaf.some(m=>m.server&&/^https:\/\//i.test(m.server)));
-   if(!r)return null;
-   const m=r.moshaf.find(x=>x.server&&/^https:\/\//i.test(x.server)&&x.surah_list);
-   return m?{id:String(r.id),name:label,server:m.server.replace(/\/?$/,"/"),surahs:(m.surah_list||"").split(",").map(Number),source:"mp3quran"}:null;
-  };
-  const y=add(["ياسر الدوسري","ياسر الدوسري"],"ياسر الدوسري");
-  const i=add(["إسلام صبحي","اسلام صبحي"],"إسلام صبحي");
-  EXTRA_READERS=[y,i].filter(Boolean);
-  // عبد الرحمن مسعد لا يظهر ضمن فهرس المصاحف الكاملة في MP3Quran؛ لا نضع رابط MP3 غير موثوق.
-  renderExtraReaders();
- }catch(e){EXTRA_READY=false;const el=$("extraReaders");if(el)el.innerHTML='<p class="note">تعذر تحميل فهرس القراء الإضافيين. تحقق من الاتصال ثم أعد المحاولة.</p><button class="chip" onclick="EXTRA_READY=false;loadExtraReaders()">إعادة المحاولة</button>'}
-}
-function extraAudioUrl(r,surah){return r.server+String(surah).padStart(3,"0")+".mp3"}
-function extraPlay(id){
- const r=EXTRA_READERS.find(x=>x.id===String(id));if(!r)return;
- const surah=+( $("extraSurah")?.value || EXTRA_SURAH || 1 );
- if(!r.surahs.includes(surah)){toast("هذه السورة غير متاحة لهذا المصحف");return}
- const title="سورة "+(SUR?.[surah-1]?.a||surah);
- const url=extraAudioUrl(r,surah);
- EXTRA_CURRENT={id:r.id,name:r.name,surah,url,title};LS.set("extraCurrent",EXTRA_CURRENT);EXTRA_SURAH=surah;LS.set("extraSurah",surah);
- if(window.Android&&Android.playBackground){Android.playBackground(url,title,r.name);toast("بدأ التشغيل في الخلفية")}
- else{const a=new Audio(url);a.play().catch(()=>toast("تعذر تشغيل الصوت"));window._extraAudio=a;toast("بدأ التشغيل؛ قد يتوقف عند إغلاق الصفحة")}
-}
-function extraControl(action){if(!window.Android)return;try{if(action==="pause")Android.pauseBackground();if(action==="resume")Android.resumeBackground();if(action==="stop")Android.stopBackground()}catch(e){}}
-function renderExtraReaders(){
- const el=$("extraReaders");if(!el)return;
- const surahOptions=(SUR||[]).map((x,i)=>`<option value="${i+1}" ${i+1===EXTRA_SURAH?"selected":""}>${x.a}</option>`).join("");
- const cards=EXTRA_READERS.map(r=>`<div class="rc"><div class="av">${r.name[0]}</div><div class="rb"><b>${r.name}</b><small>مصحف كامل · MP3Quran</small><p>تلاوة السورة كاملة مع إمكانية مواصلة الاستماع بعد الخروج من التطبيق.</p></div><button class="pri" onclick="extraPlay('${r.id}')">▶ استماع</button></div>`).join("");
- el.innerHTML=`<div class="div">قراء إضافيون</div><label class="note" for="extraSurah">اختر السورة للاستماع</label><select id="extraSurah" onchange="EXTRA_SURAH=+this.value;LS.set('extraSurah',EXTRA_SURAH)" style="width:100%;padding:12px;border-radius:12px;background:var(--bg2);color:var(--ink);border:1px solid var(--line);font:inherit">${surahOptions}</select>${cards||'<p class="note">لم يُعثر على ياسر الدوسري أو إسلام صبحي في فهرس الصوت المتاح حالياً.</p>'}<div class="chips" style="margin-top:8px"><button class="chip" onclick="extraControl('pause')">⏸ إيقاف مؤقت</button><button class="chip" onclick="extraControl('resume')">▶ متابعة</button><button class="chip" onclick="extraControl('stop')">■ إيقاف</button></div><div class="rc"><div class="av">ع</div><div class="rb"><b>عبد الرحمن مسعد</b><small>المصدر الرسمي</small><p>لا تتوفر له روابط MP3 مباشرة موثقة ضمن فهرس MP3Quran؛ يمكنك فتح قناته الرسمية على YouTube من هنا.</p></div><button onclick="Android&&Android.openExternal('${MOSSAD_CHANNEL}')">فتح</button></div><p class="note">هذه الإضافة مخصصة للاستماع إلى السورة كاملة. تبقى قائمة إنشاء الفيديو بالقراء المتاحين آيةً بآية كما هي، حتى لا تُستخدم تسجيلات المصحف الكامل بطريقة تقطع التلاوة أو تزامن الآيات بشكل خاطئ. إذا تعذر تحميل الفهرس اضغط إعادة المحاولة.</p><button class="chip" onclick="EXTRA_READY=false;loadExtraReaders()">إعادة تحميل القراء</button>`;
-}
+function playSample(id){if(SAID==id){stopSample();return}stopSample();SAID=id;SA.src=id==="yd.yasser"?"https://everyayah.com/data/Yasser_Ad-Dussary_128kbps/001002.mp3":`https://cdn.islamic.network/quran/audio/64/${id}/2.mp3`;SA.onended=stopSample;SA.onerror=()=>{stopSample();toast("تعذّر تشغيل العينة، تحقق من الاتصال")};const p=SA.play();p&&p.catch&&p.catch(()=>{});sel("[data-p]",b=>b.dataset.p==id)}
 function toggleFav(id){FAV=FAV.includes(id)?FAV.filter(x=>x!=id):[...FAV,id];LS.set("favs",FAV);renderRecs()}
 function setDef(id){DEFREC=DEFREC==id?null:id;LS.set("defrec",DEFREC);if(DEFREC){S.rec=id;save()}toast(DEFREC?"تم تعيين القارئ الافتراضي":"أُلغي القارئ الافتراضي");renderRecs()}
 function pickRec(id){S.rec=id;save();sel(".rc",b=>b.dataset.id==id)}
@@ -169,8 +138,8 @@ function renderRecs(){const el=$("rl");if(!el)return;const q=sn(RQ.trim());
 /* ---------- البيانات ---------- */
 const BG=[["ليل",["#14171f","#27344a"]],["فجر",["#2a1f2d","#7a4a52"]],["واحة",["#0e211a","#2a5a47"]],["رمل",["#2b2418","#6b5a34"]],["بحر",["#0d1b2a","#1b4965"]],["غروب",["#2b1b17","#b5651d"]],["بنفسجي",["#1d1530","#4b3a7a"]],["أسود",["#000000","#101010"]],["عاجي",["#f6f1e3","#e4d8b8"]],["زمردي",["#06281d","#0f5a42"]]];
 const BGT=["ألوان","مشاهد متحركة","صور حقيقية","ملفي"];
-const SCENES=["ليلة النجوم","الشروق","الصحراء","الغابة والضباب","المحيط","الشفق القطبي","الغيوم","مسجد عند الغروب","مسجد في الليل","الكعبة المشرفة","نقوش هندسية","الفوانيس"];
-const SCN_COL=[["#050816","#1c2b52"],["#24457f","#f4a259"],["#f7c873","#c76f2b"],["#08221e","#2f6b4f"],["#0a2342","#2a7fa5"],["#020611","#0b1f2e"],["#2f84d6","#cbe9ff"],["#3a2a5a","#e88b4a"],["#050b1e","#14264a"],["#06101e","#1b2a45"],["#06281d","#0f5a42"],["#1a1030","#4a2a50"]];
+const SCENES=["ليلة النجوم","الشروق","الصحراء","الغابة والضباب","المحيط","الشفق القطبي","الغيوم","مسجد عند الغروب","مسجد في الليل","الكعبة المشرفة","نقوش هندسية","الفوانيس","وادي الجبال","بحيرة الغابة","شلالات هادئة"];
+const SCN_COL=[["#050816","#1c2b52"],["#24457f","#f4a259"],["#f7c873","#c76f2b"],["#08221e","#2f6b4f"],["#0a2342","#2a7fa5"],["#020611","#0b1f2e"],["#2f84d6","#cbe9ff"],["#3a2a5a","#e88b4a"],["#050b1e","#14264a"],["#06101e","#1b2a45"],["#06281d","#0f5a42"],["#1a1030","#4a2a50"],["#19364a","#e0a56b"],["#092c2b","#78a98b"],["#123c49","#b7d6cf"]];
 const PHOTOS=[["The Kaaba during Hajj.jpg","الكعبة أثناء الحج","ك"],["Mosquée Masjid el Haram à la Mecque.jpg","الكعبة في المسجد الحرام","ك"],["Supplicating Pilgrim at Masjid Al Haram. Mecca, Saudi Arabia.jpg","معتمر في المسجد الحرام","ك"],["Kaaba Mirror like.jpg","الكعبة والمآذن","ك"],["Al-Kaaba in Mecca.jpg","الكعبة المشرفة","ك"],
 ["Blue Mosque Courtyard Dusk Wikimedia Commons.jpg","المسجد الأزرق عند الغروب","م"],["Blue Mosque (The Sultan Ahmed Mosque) (8396648956).jpg","مسجد السلطان أحمد","م"],["Blaue Moschee Kuppel schräg.jpg","قبة المسجد الأزرق","م"],["Sheikh-Zayed-Grand-Mosque-at-Night.jpg","جامع الشيخ زايد ليلًا","م"],["Sheikh Zayed Mosque in Abu Dhabi.jpg","جامع الشيخ زايد","م"],
 ["Moraine Lake 17092005.jpg","بحيرة بين الجبال","ط"],["Lake near Sunnig Grat summit.JPG","بحيرة جبلية عالية","ط"],["Mount Hood reflected in Mirror Lake, Oregon.jpg","جبل وانعكاسه","ط"],["Lake mapourika NZ.jpeg","بحيرة هادئة","ط"],["Mountain view in Robson valley.jpg","وادٍ جبلي","ط"],["Lac de Montriond 07.jpg","بحيرة الجبال","ط"],["Mount Shasta, Lake Siskiyou, SW view.jpg","جبل وبحيرة","ط"],["Sunrise at Maligne lake.jpg","شروق على البحيرة","ط"],["Frozen Hooker Glacier Lake and Hooker Glacier in winter with Mount Cook in the background.jpg","جليد وجبال","ط"]];
@@ -200,7 +169,7 @@ const TPL=[["ذهب ملكي",{bgType:0,bg:9,frm:3,fcol:0,col:"#e6c36a",mcol:1,o
 const BISM="بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ";
 const S=Object.assign({surah:1,from:1,to:1,rec:"ar.alafasy",bg:2,bgType:1,scene:7,photo:0,fmt:0,tr:"",rep:1,col:"#efe6d2",mcol:0,font:0,fs:64,ty:0,tal:100,dim:30,txt:0,showS:true,showR:true,showN:true,qs:[720],anim:2,ov:0,frm:3,fcol:0,gap:0.4,td:0.5,intro:false,sweep:false,pbar:true,cap:"",wave:0,wpos:0,wc:"#e6c36a",tpl:-1},LS.get("s5")||{},{step:0,run:false,outs:null,err:null,note:null,cur:0});
 if(DEFREC)S.rec=DEFREC;
-let SUR=LS.get("sur"),MAX=15,BGM=null,PH={el:null,idx:-1,st:""},LV=0,AUD=null,PREV=[];
+let SUR=LS.get("sur"),MAX=10,BGM=null,PH={el:null,idx:-1,st:""},LV=0,AUD=null,PREV=[];
 const T=["السورة","الآيات","القارئ","الخلفية والقوالب","الخط والنص","الإطار والتأثيرات","الجودة والإنشاء"];
 const cnt=()=>SUR?SUR[S.surah-1].n:1;
 const norm=s=>s.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g,"");
@@ -289,6 +258,9 @@ function scene(c,W,H,t,id){
   c.fillRect(0,H*0.72,W,H*0.28);kaaba(c,W,H,t)}
  else if(id==10){grad(c,W,H,"#06281d","#0f5a42");const u=W/4,off=(t*10)%u;c.lineWidth=2;
   for(let gy=-1;gy<H/u+2;gy++)for(let gx=-1;gx<6;gx++){const cx=gx*u+(gy%2?u/2:0)+off,cy=gy*u*0.866+off*0.5,al=0.14+0.1*Math.sin(t*0.8+gx+gy);c.strokeStyle=`rgba(230,195,106,${al})`;star8(c,cx,cy,u*0.46);c.stroke()}}
+ else if(id==12){grad(c,W,H,"#19364a","#e0a56b");const sx=W*.72,sy=H*.32,g=c.createRadialGradient(sx,sy,8,sx,sy,W*.45);g.addColorStop(0,"rgba(255,226,165,.9)");g.addColorStop(1,"rgba(255,226,165,0)");c.fillStyle=g;c.fillRect(0,0,W,H);ridge(c,W,H,H*.62,H*.18,.008,t*.02,"#536c70");ridge(c,W,H,H*.72,H*.16,.01,t*.018,"#304f50");ridge(c,W,H,H*.88,H*.12,.012,t*.014,"#142f32")}
+ else if(id==13){grad(c,W,H,"#092c2b","#78a98b");ridge(c,W,H,H*.55,H*.06,.008,t*.02,"#416c5b");ridge(c,W,H,H*.66,H*.08,.01,t*.018,"#234e43");c.fillStyle="#163e3c";c.fillRect(0,H*.68,W,H*.32);for(let i=0;i<16;i++){const x=(i/16)*W+Math.sin(t*.2+i)*5,y=H*(.18+h(i)*.38),r=W*(.035+h(i+3)*.025);c.fillStyle=i%2?"#123b32":"#1b503e";c.beginPath();c.arc(x,y,r,0,6.283);c.fill()}c.strokeStyle="rgba(220,245,225,.28)";c.lineWidth=2;for(let i=0;i<12;i++){const x=i*W/12;c.beginPath();c.moveTo(x,H*.7);c.lineTo(x+Math.sin(t+i)*8,H);c.stroke()}}
+ else if(id==14){grad(c,W,H,"#123c49","#b7d6cf");ridge(c,W,H,H*.42,H*.12,.009,t*.02,"#456d70");ridge(c,W,H,H*.54,H*.1,.012,t*.018,"#2b5960");c.fillStyle="#0b3540";c.fillRect(W*.36,H*.38,W*.28,H*.62);const wg=c.createLinearGradient(W*.5,H*.38,W*.5,H);wg.addColorStop(0,"rgba(235,255,255,.9)");wg.addColorStop(1,"rgba(160,225,230,.18)");c.fillStyle=wg;c.fillRect(W*.42,H*.38,W*.16,H*.62);for(let i=0;i<45;i++){const x=W*(.38+h(i)*.24),y=H*(.42+((t*0.35+h(i+2))%0.58));c.fillStyle="rgba(235,255,255,.55)";c.fillRect(x,y,2,8)}}
  else{grad(c,W,H,"#1a1030","#4a2a50");stars(c,W,H,t,60,H*0.5);
   for(let i=0;i<5;i++){const x=W*(0.12+0.19*i)+Math.sin(t*0.7+i)*10,y=H*(0.10+0.09*h(i+2)),s=W*0.06;c.strokeStyle="rgba(230,195,106,.6)";c.lineWidth=2;c.beginPath();c.moveTo(x,0);c.lineTo(x,y);c.stroke();
    const g=c.createRadialGradient(x,y+s*1.4,2,x,y+s*1.4,s*3.2);g.addColorStop(0,`rgba(255,190,90,${0.45+0.15*Math.sin(t*2+i)})`);g.addColorStop(1,"rgba(255,190,90,0)");c.fillStyle=g;c.fillRect(x-s*3.2,y-s,s*6.4,s*6.4);
@@ -417,7 +389,7 @@ function render(){
   if(S.to>cnt())S.to=cnt();if(S.from>S.to)S.from=S.to;
   const stp=(k,l)=>`<div class="stp"><span>${l}</span><div><button onclick="adj('${k}',-1)">−</button><b>${AR(S[k])}</b><button onclick="adj('${k}',1)">+</button></div></div>`;
   o.innerHTML=sec("list",`سورة ${SUR[S.surah-1].a} · ${AR(cnt())} آية`,`${stp("from","من الآية")}${stp("to","إلى الآية")}<p class="note">عدد الآيات المختارة: ${AR(S.to-S.from+1)} (الحد الأقصى ${AR(MAX)})</p>`)+sec("","تكرار كل آية (للحفظ)",chips("rep",[[1,"بدون"],[2,"مرتان"],[3,"٣ مرات"],[5,"٥ مرات"]]));nav(back,next)}
- if(S.step==2){o.innerHTML=sec("mic","اختر القارئ",`<input type="text" placeholder="ابحث عن قارئ…" value="${RQ.replace(/"/g,"&quot;")}" oninput="RQ=this.value;renderRecs()"><div class="chips" id="rcats" style="margin:12px 0">${RCATS.map((x,i)=>`<button class="chip ${i==RCAT?"sel":""}" onclick="setRCat(${i})">${x}</button>`).join("")}</div><div id="rl"></div><p class="note">▶ للاستماع إلى عينة قبل الاختيار · ♥ للمفضلة · ★ لجعله القارئ الافتراضي · اضغط على الصورة لإضافة صورة القارئ من معرضك.</p><div id="extraReaders"><p class="note">جارٍ تحميل القراء الإضافيين…</p></div>`);renderRecs();loadExtraReaders();nav(back,next)}
+ if(S.step==2){o.innerHTML=sec("mic","اختر القارئ",`<input type="text" placeholder="ابحث عن قارئ…" value="${RQ.replace(/"/g,"&quot;")}" oninput="RQ=this.value;renderRecs()"><div class="chips" id="rcats" style="margin:12px 0">${RCATS.map((x,i)=>`<button class="chip ${i==RCAT?"sel":""}" onclick="setRCat(${i})">${x}</button>`).join("")}</div><div id="rl"></div><p class="note">استمع إلى عينة قصيرة قبل الاختيار، وأضف القارئ إلى المفضلة أو عيّنه قارئاً افتراضياً.</p>`);renderRecs();nav(back,next)}
  if(S.step==3){const ty=S.bgType;let body="";
   if(ty==0)body=`<div class="bgs fade">${BG.map((b,i)=>`<button class="${i==S.bg?"sel":""}" data-k="bg" data-v="${i}" style="background:linear-gradient(160deg,${b[1][0]},${b[1][1]});${i==8?"color:#14382b":""}" onclick="pick('bg',${i},false)">${b[0]}</button>`).join("")}</div>`;
   if(ty==1)body=`<div class="fade">${chips("scene",SCENES)}</div>`;
@@ -516,8 +488,8 @@ const MEM=new Map(),IDB={db:null,async open(){if(this.db)return this.db;return t
  async get(k){try{const d=await this.open();return await new Promise(res=>{const q=d.transaction("a").objectStore("a").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>res(null)})}catch(e){return null}},
  async put(k,v){try{const d=await this.open();d.transaction("a","readwrite").objectStore("a").put(v,k)}catch(e){}}};
 async function getAudio(rec,num){const k=`a:${rec}:${num}`;let ab=MEM.get(k)||await IDB.get(k);
- if(!ab){let r=await fetchSafe(`https://cdn.islamic.network/quran/audio/128/${rec}/${num}.mp3`);if(!r.ok)r=await fetchSafe(`https://cdn.islamic.network/quran/audio/64/${rec}/${num}.mp3`);if(!r.ok)throw new Error("تحميل التلاوة فشل ("+r.status+")");ab=await r.arrayBuffer();IDB.put(k,ab.slice(0))}
- MEM.set(k,ab.slice(0));while(MEM.size>18)MEM.delete(MEM.keys().next().value);return ab}
+ if(!ab){let urls=[];if(rec==="yd.yasser"){let left=num,surah=1;while(surah<=114&&left>SUR[surah-1].n){left-=SUR[surah-1].n;surah++}if(surah>114)throw new Error("رقم الآية غير صالح");const pad=n=>String(n).padStart(3,"0");urls=[`https://everyayah.com/data/Yasser_Ad-Dussary_128kbps/${pad(surah)}${pad(left)}.mp3`]}else urls=[`https://cdn.islamic.network/quran/audio/128/${rec}/${num}.mp3`,`https://cdn.islamic.network/quran/audio/64/${rec}/${num}.mp3`];let r=null;for(const u of urls){r=await fetchSafe(u);if(r.ok)break}if(!r||!r.ok)throw new Error("تعذر تحميل تلاوة القارئ المختار ("+(r?.status||"شبكة")+")");ab=await r.arrayBuffer();IDB.put(k,ab.slice(0))}
+ MEM.set(k,ab.slice(0));while(MEM.size>12)MEM.delete(MEM.keys().next().value);return ab}
 async function cj(url){const k="j:"+url,c=LS.get(k);if(c)return c;const j=await(await fetchSafe(url)).json();LS.set(k,j);return j}
 async function gen(){
  if(S.run)return;S.err=null;S.note=null;S.run=true;render();const msg=t=>{const m=$("msg");if(m)m.textContent=t},pg=v=>{const p=$("pg");if(p)p.value=v};
