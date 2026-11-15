@@ -148,7 +148,7 @@ class MainActivity : Activity() {
             javaScriptCanOpenWindowsAutomatically = false
             setSupportMultipleWindows(false)
         }
-        if (android.os.Build.VERSION.SDK_INT >= 26) setRendererPriorityPolicy(RENDERER_PRIORITY_BOUND, true)
+        if (android.os.Build.VERSION.SDK_INT >= 26) setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true)
         addJavascriptInterface(Bridge(this@MainActivity), "Android")
         webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: android.webkit.WebResourceRequest) =
