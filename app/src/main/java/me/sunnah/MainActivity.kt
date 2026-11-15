@@ -20,8 +20,56 @@ import android.view.ViewGroup
 import androidx.webkit.WebViewAssetLoader
 import java.io.BufferedOutputStream
 import java.io.OutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 class Bridge(private val activity: Activity) {
+    private val netExecutor = Executors.newFixedThreadPool(3)
+
+    // Fetch remote Quran/text/image/audio resources natively to avoid WebView CORS failures.
+    @JavascriptInterface fun nativeFetch(url: String, requestId: String) {
+        netExecutor.execute {
+            var conn: HttpURLConnection? = null
+            try {
+                val parsed = Uri.parse(url)
+                require(parsed.scheme == "https" && parsed.host in setOf(
+                    "api.alquran.cloud", "cdn.islamic.network", "everyayah.com",
+                    "commons.wikimedia.org", "upload.wikimedia.org", "fonts.googleapis.com", "fonts.gstatic.com"
+                )) { "عنوان مصدر غير مسموح" }
+                val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15000
+                    readTimeout = 45000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "HasanahAndroid/1.2")
+                }
+                conn = connection
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val bytes = stream?.use { input ->
+                    val out = java.io.ByteArrayOutputStream()
+                    val buf = ByteArray(64 * 1024)
+                    var total = 0
+                    while (true) {
+                        val n = input.read(buf); if (n < 0) break
+                        total += n
+                        if (total > 30 * 1024 * 1024) throw IllegalStateException("الملف أكبر من الحد المسموح")
+                        out.write(buf, 0, n)
+                    }
+                    out.toByteArray()
+                } ?: ByteArray(0)
+                val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                val mime = connection.contentType ?: "application/octet-stream"
+                val js = "window.__nativeFetchDone(${org.json.JSONObject.quote(requestId)},$status,${org.json.JSONObject.quote(b64)},${org.json.JSONObject.quote(mime)},null)"
+                activity.runOnUiThread { if (!activity.isFinishing && !activity.isDestroyed) (activity as? MainActivity)?.runNativeJs(js) }
+            } catch (e: Exception) {
+                val msg = org.json.JSONObject.quote(e.message ?: "فشل الاتصال بالمصدر")
+                val js = "window.__nativeFetchDone(${org.json.JSONObject.quote(requestId)},0,'','application/octet-stream',$msg)"
+                activity.runOnUiThread { if (!activity.isFinishing && !activity.isDestroyed) (activity as? MainActivity)?.runNativeJs(js) }
+            } finally { conn?.disconnect() }
+        }
+    }
     private var output: OutputStream? = null
     private var lastUri: Uri? = null
     private var mimeType: String = "video/mp4"
@@ -126,6 +174,8 @@ class MainActivity : Activity() {
             web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
         }
     }
+
+    fun runNativeJs(script: String) { if (::web.isInitialized) web.evaluateJavascript(script, null) }
 
     private fun createWebView(): WebView = WebView(this).apply {
         setBackgroundColor(Color.rgb(7, 25, 18))

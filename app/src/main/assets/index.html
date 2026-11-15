@@ -79,8 +79,12 @@ button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid
 <script>
 const $=id=>document.getElementById(id);
 const LS={get:k=>{try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-// Network requests are bounded so a stalled CDN cannot freeze the workflow indefinitely.
-async function fetchSafe(url,opts={}){const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),25000);try{return await fetch(url,{...opts,signal:ctl.signal,cache:opts.cache||"force-cache"})}finally{clearTimeout(timer)}}
+// Native HTTPS transport avoids CORS restrictions of Android WebView appassets origin.
+const nativePending=new Map();let nativeSeq=0;
+window.__nativeFetchDone=(id,status,b64,mime,error)=>{const p=nativePending.get(id);if(!p)return;nativePending.delete(id);if(error){p.reject(new TypeError(error));return}try{const raw=atob(b64),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);const blob=new Blob([bytes],{type:mime});p.resolve({ok:status>=200&&status<300,status,headers:{get:n=>n.toLowerCase()==="content-type"?mime:null},arrayBuffer:()=>blob.arrayBuffer(),blob:()=>Promise.resolve(blob),text:()=>blob.text(),json:()=>blob.text().then(JSON.parse)})}catch(e){p.reject(e)}};
+function nativeFetch(url){return new Promise((resolve,reject)=>{const id=String(++nativeSeq);nativePending.set(id,{resolve,reject});try{if(!window.Android||!Android.nativeFetch)throw new Error("خدمة الاتصال غير متاحة؛ أعد فتح التطبيق");Android.nativeFetch(String(url),id)}catch(e){nativePending.delete(id);reject(e)}})}
+// Network requests are bounded; retry transient network errors twice.
+async function fetchSafe(url,opts={}){const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),50000);try{if(opts.method&&opts.method!=="GET")return await fetch(url,{...opts,signal:ctl.signal});let last;for(let n=0;n<3;n++){try{return window.Android&&Android.nativeFetch?await nativeFetch(url):await fetch(url,{...opts,signal:ctl.signal,cache:opts.cache||"force-cache"})}catch(e){last=e;if(n<2)await new Promise(r=>setTimeout(r,700*(n+1)))}}throw last||new TypeError("فشل الاتصال بالمصدر")}finally{clearTimeout(timer)}}
 const frac=x=>x-Math.floor(x),h=n=>frac(Math.sin(n*127.1+311.7)*43758.5453),ease=x=>x*x*(3-2*x),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const MC=new MessageChannel();let yres=null;MC.port1.onmessage=()=>{const r=yres;yres=null;r&&r()};const yld=()=>new Promise(r=>{yres=r;MC.port2.postMessage(0)});
 const AR=n=>String(n).replace(/\d/g,d=>"٠١٢٣٤٥٦٧٨٩"[d]);
@@ -174,7 +178,7 @@ const T=["السورة","الآيات","القارئ","الخلفية والقو
 const cnt=()=>SUR?SUR[S.surah-1].n:1;
 const norm=s=>s.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g,"");
 const sn=s=>norm(s).replace(/[أإآٱ]/g,"ا").replace(/ى/g,"ي").replace(/ة/g,"ه");
-async function surahs(){if(SUR)return;try{const j=await(await fetch("https://api.alquran.cloud/v1/surah")).json();SUR=j.data.map(x=>({a:x.name.replace("سُورَةُ ","").replace("سورة ",""),n:x.numberOfAyahs}));LS.set("sur",SUR)}catch(e){}}
+async function surahs(){if(SUR)return;try{const j=await(await fetchSafe("https://api.alquran.cloud/v1/surah")).json();SUR=j.data.map(x=>({a:x.name.replace("سُورَةُ ","").replace("سورة ",""),n:x.numberOfAyahs}));LS.set("sur",SUR)}catch(e){}}
 function save(){const{step,run,outs,err,note,cur,...r}=S;LS.set("s5",r)}
 const nav=(l,r)=>{$("ft").innerHTML=l+r};
 /* ---------- مكونات الواجهة ---------- */
@@ -199,7 +203,7 @@ function pickBg(inp){const f=inp.files&&inp.files[0];if(!f)return;const u=URL.cr
  else{const im=new Image();im.src=u;BGM={el:im,url:u,name:f.name}}
  S.bgType=3;save();inp.value="";render()}
 function rmBg(){if(BGM){if(BGM.vid)BGM.el.remove();URL.revokeObjectURL(BGM.url)}BGM=null;if(S.bgType==3)S.bgType=0;save();render()}
-async function loadPhoto(i){S.photo=i;PH={el:null,idx:i,st:"load"};render();try{const u=`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(PHOTOS[i][0])}?width=1280`;const r=await fetch(u);if(!r.ok)throw 0;const im=new Image();im.src=URL.createObjectURL(await r.blob());await im.decode();if(PH.idx==i){PH.el=im;PH.st="ok"}}catch(e){if(PH.idx==i)PH.st="err"}render()}
+async function loadPhoto(i){S.photo=i;PH={el:null,idx:i,st:"load"};render();try{const u=`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(PHOTOS[i][0])}?width=1280`;const r=await fetchSafe(u);if(!r.ok)throw 0;const im=new Image();im.src=URL.createObjectURL(await r.blob());await im.decode();if(PH.idx==i){PH.el=im;PH.st="ok"}}catch(e){if(PH.idx==i)PH.st="err"}render()}
 function cover(c,el,W,H){const iw=el.videoWidth||el.naturalWidth,ih=el.videoHeight||el.naturalHeight;if(!iw||!ih)return false;const k=Math.max(W/iw,H/ih),w=iw*k,hh=ih*k;c.drawImage(el,(W-w)/2,(H-hh)/2,w,hh);return true}
 function seekTo(v,tt){return new Promise(r=>{if(Math.abs(v.currentTime-tt)<0.02)return r();const f=()=>{v.removeEventListener("seeked",f);r()};v.addEventListener("seeked",f);v.currentTime=tt;setTimeout(r,700)})}
 async function seekBg(t){if(S.bgType==3&&BGM&&BGM.vid){const v=BGM.el;v.pause();await seekTo(v,t%(v.duration||1))}}
@@ -315,8 +319,8 @@ const padsBase=H=>{const n=(S.showN?1:0)+(S.showR?1:0)+(S.cap?1:0);return[Math.r
 const pads=H=>{let[pt,pb]=padsBase(H);if(S.wave&&S.wave<3){const e=bandH(H)+20;if(S.wpos==0)pb+=e;else pt+=e}return[pt,pb]};
 function drawIntro(c,W,H){c.direction="rtl";
  if(S.surah!=9){c.font=`54px ${FF()}`;c.fillStyle=S.col;wrap(c,BISM,W-150).forEach((x,i)=>c.fillText(x,W/2,H*0.34+i*90))}
- c.font=`84px ${FF()}`;c.fillStyle=S.col;c.fillText("سورة "+(SUR?SUR[S.surah-1].a:""),W/2,H*0.52);
- c.font=`34px ${FF()}`;c.fillStyle=META[S.mcol][0];c.fillText("بصوت القارئ "+recName(S.rec),W/2,H*0.6)}
+ // تبقى بيانات السورة والقارئ في شريط ثابت مستقل طوال الفيديو.
+}
 function drawAyah(c,sg,t,W,H,pt,pb){
  const key=[W,H,S.font,S.fs,S.ty,S.tr,pt,pb,LV].join("|");
  if(sg.lk!==key){sg.lk=key;c.direction="rtl";const mw=W-150,avail=H-pt-pb,hasTr=!!sg.tr;
@@ -335,8 +339,7 @@ function drawAyah(c,sg,t,W,H,pt,pb){
  c.globalAlpha=g0;
  if(sg.TL.length){c.direction=sg.trl?"rtl":"ltr";c.font=`${sg.ft}px sans-serif`;c.fillStyle=META[S.mcol][0];sg.TL.forEach((x,i)=>c.fillText(x,W/2,sg.y0+sg.ah+30+i*sg.ft*1.6+sg.ft*0.8))}
  c.direction="rtl";c.font=`28px ${FF()}`;c.fillStyle=META[S.mcol][0];
- const bl=[];if(S.showN)bl.push("الآية "+AR(sg.n));if(S.showR)bl.push(recName(S.rec));
- const yE=H-40-(S.cap?38:0);bl.forEach((x,i)=>c.fillText(x,W/2,yE-(bl.length-1-i)*38))}
+ if(S.showN)c.fillText("الآية "+AR(sg.n),W/2,H-40-(S.cap?38:0))}
 function drawSeg(c,sg,t,W,H){
  const an=S.anim,td=S.td,ws=sg.s-(an?0.12:0.02),we=sg.e+Math.max(0.15,S.gap-0.05);if(t<ws||t>we)return;
  const ai=Math.min(1,(t-ws)/td),ao=Math.min(1,(we-t)/td),pin=an?ease(ai):1,pout=an?ease(ao):1,a=an?Math.min(pin,pout):1;
@@ -357,10 +360,11 @@ function drawAt(c,t,W,H,segs,total){
  overlay(c,W,H,t,S.ov);deco(c,W,H);drawWave(c,W,H,t);
  c.textAlign="center";c.textBaseline="middle";try{c.textRendering="optimizeLegibility";c.fontKerning="normal"}catch(e){}
  if(ok||S.ov){c.shadowColor="rgba(0,0,0,.65)";c.shadowBlur=10}
- const intro=segs.some(s=>s.intro&&t>=s.s-0.15&&t<=s.e+0.3);
- if(S.showS&&!intro){c.direction="rtl";c.font=`44px ${FF()}`;c.fillStyle=META[S.mcol][0];c.fillText("سورة "+(SUR?SUR[S.surah-1].a:""),W/2,padsBase(H)[0]*0.55)}
+ // ارسم نص الآية المتزامن مع الصوت أولاً؛ بيانات القارئ والسورة تبقى ثابتة فوقه.
  for(const sg of segs)drawSeg(c,sg,t,W,H);
  c.globalAlpha=1;c.direction="rtl";
+ if(S.showS){c.font=`44px ${FF()}`;c.fillStyle=META[S.mcol][0];c.fillText("سورة "+(SUR?SUR[S.surah-1].a:""),W/2,Math.max(58,padsBase(H)[0]*0.55))}
+ if(S.showR){c.font=`30px ${FF()}`;c.fillStyle=META[S.mcol][0];c.fillText("القارئ: "+recName(S.rec),W/2,Math.max(98,padsBase(H)[0]*0.55+42))}
  if(S.cap){c.font=`26px ${FF()}`;c.fillStyle=META[S.mcol][0];c.fillText(S.cap,W/2,H-40)}
  c.shadowBlur=0;
  if(S.pbar&&total){c.fillStyle="rgba(255,255,255,.18)";c.fillRect(40,H-16,W-80,4);const w=(W-80)*Math.min(1,t/total);c.fillStyle="#e6c36a";c.fillRect(W-40-w,H-16,w,4)}}
