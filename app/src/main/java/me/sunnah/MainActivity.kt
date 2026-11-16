@@ -46,7 +46,7 @@ class Bridge(private val activity: Activity) {
                     connectTimeout = 15000
                     readTimeout = 45000
                     instanceFollowRedirects = true
-                    setRequestProperty("User-Agent", "HasanahAndroid/1.3")
+                    setRequestProperty("User-Agent", "HasanahAndroid/1.4")
                 }
                 conn = connection
                 val status = connection.responseCode
@@ -77,10 +77,13 @@ class Bridge(private val activity: Activity) {
     private var output: OutputStream? = null
     private var lastUri: Uri? = null
     private var mimeType: String = "video/mp4"
+    @Volatile private var writeFailed = false
 
     @Synchronized @JavascriptInterface
     fun start(name: String, mime: String): Boolean {
         try {
+            try { output?.close() } catch (_: Exception) { }
+            output = null; writeFailed = false
             mimeType = mime.ifBlank { "video/mp4" }
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, name.replace(Regex("[^\\p{L}\\p{N}._-]"), "_"))
@@ -104,7 +107,7 @@ class Bridge(private val activity: Activity) {
     @Synchronized @JavascriptInterface
     fun chunk(base64: String) {
         try { output?.write(Base64.decode(base64, Base64.DEFAULT)) }
-        catch (e: Exception) { activity.runOnUiThread { Toast.makeText(activity, "حدث خطأ أثناء حفظ الملف", Toast.LENGTH_LONG).show() } }
+        catch (e: Exception) { if (!writeFailed) { writeFailed = true; activity.runOnUiThread { Toast.makeText(activity, "حدث خطأ أثناء حفظ الملف (تحقق من المساحة المتاحة)", Toast.LENGTH_LONG).show() } } }
     }
 
     @JavascriptInterface fun share() {
@@ -113,6 +116,7 @@ class Bridge(private val activity: Activity) {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = mimeType
                 putExtra(Intent.EXTRA_STREAM, uri)
+                clipData = android.content.ClipData.newRawUri("video", uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             activity.startActivity(Intent.createChooser(intent, "مشاركة المقطع"))
@@ -121,12 +125,19 @@ class Bridge(private val activity: Activity) {
 
     @Synchronized @JavascriptInterface
     fun end() {
-        try { output?.flush(); output?.close() } catch (_: Exception) { }
+        try { output?.flush(); output?.close() } catch (_: Exception) { writeFailed = true }
         output = null
-        lastUri?.let { uri ->
+        val uri = lastUri
+        if (writeFailed) {
+            // لا نترك ملفًا ناقصًا في التنزيلات
+            try { if (uri != null) activity.contentResolver.delete(uri, null, null) } catch (_: Exception) { }
+            lastUri = null
+            return
+        }
+        uri?.let {
             try {
                 val values = ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }
-                activity.contentResolver.update(uri, values, null, null)
+                activity.contentResolver.update(it, values, null, null)
             } catch (_: Exception) { }
         }
         activity.runOnUiThread { Toast.makeText(activity, "تم الحفظ في Downloads/Hasanah", Toast.LENGTH_LONG).show() }
