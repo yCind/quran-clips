@@ -16,6 +16,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.RenderProcessGoneDetail
 import android.widget.Toast
+import android.view.WindowManager
 import android.view.ViewGroup
 import androidx.webkit.WebViewAssetLoader
 import java.io.BufferedOutputStream
@@ -24,8 +25,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
+// مجموعة خيوط واحدة مشتركة: كانت تُنشأ مجموعة جديدة مع كل إعادة إنشاء للعرض فتتراكم الخيوط.
+private object NetPool { val ex = Executors.newFixedThreadPool(2) }
+
 class Bridge(private val activity: Activity) {
-    private val netExecutor = Executors.newFixedThreadPool(3)
+    private val netExecutor = NetPool.ex
 
     // Fetch remote Quran/text/image/audio resources natively to avoid WebView CORS failures.
     @JavascriptInterface fun nativeFetch(url: String, requestId: String) {
@@ -42,7 +46,7 @@ class Bridge(private val activity: Activity) {
                     connectTimeout = 15000
                     readTimeout = 45000
                     instanceFollowRedirects = true
-                    setRequestProperty("User-Agent", "HasanahAndroid/1.2")
+                    setRequestProperty("User-Agent", "HasanahAndroid/1.3")
                 }
                 conn = connection
                 val status = connection.responseCode
@@ -136,7 +140,7 @@ class Bridge(private val activity: Activity) {
             putExtra(QuranPlaybackService.EXTRA_TITLE, title)
             putExtra(QuranPlaybackService.EXTRA_ARTIST, artist)
         }
-        androidx.core.content.ContextCompat.startForegroundService(activity, intent)
+        try { activity.startService(intent) } catch (_: Exception) { }
     }
     @JavascriptInterface fun openExternal(url: String) {
         if (!url.startsWith("https://")) return
@@ -151,12 +155,18 @@ class Bridge(private val activity: Activity) {
             action = QuranPlaybackService.ACTION_SEEK
             putExtra(QuranPlaybackService.EXTRA_POSITION, (seconds.coerceAtLeast(0.0) * 1000).toLong())
         }
-        activity.startService(intent)
+        try { activity.startService(intent) } catch (_: Exception) { }
     }
-    private fun sendPlayback(action: String) { activity.startService(Intent(activity, QuranPlaybackService::class.java).setAction(action)) }
+    private fun sendPlayback(action: String) {
+        try { activity.startService(Intent(activity, QuranPlaybackService::class.java).setAction(action)) } catch (_: Exception) { }
+    }
+
+    // يُستدعى من الصفحة أثناء إنشاء الفيديو: يُبقي الشاشة مضاءة ولا يوقف WebView عند الانتقال للخلفية.
+    @JavascriptInterface fun setBusy(on: Boolean) { (activity as? MainActivity)?.setBusy(on) }
 }
 
 class MainActivity : Activity() {
+    @Volatile private var busy = false
     private lateinit var web: WebView
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private lateinit var assetLoader: WebViewAssetLoader
@@ -170,8 +180,16 @@ class MainActivity : Activity() {
             .build()
         web = createWebView()
         setContentView(web)
-        if (state == null || !web.restoreState(state).let { it != null }) {
-            web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+        val restored = if (state != null) web.restoreState(state) else null
+        if (restored == null) web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+    }
+
+    fun setBusy(on: Boolean) {
+        busy = on
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
@@ -179,7 +197,6 @@ class MainActivity : Activity() {
 
     private fun createWebView(): WebView = WebView(this).apply {
         setBackgroundColor(Color.rgb(7, 25, 18))
-        setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
         settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -198,13 +215,15 @@ class MainActivity : Activity() {
             javaScriptCanOpenWindowsAutomatically = false
             setSupportMultipleWindows(false)
         }
-        if (android.os.Build.VERSION.SDK_INT >= 26) setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true)
+        if (android.os.Build.VERSION.SDK_INT >= 26) setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
         addJavascriptInterface(Bridge(this@MainActivity), "Android")
         webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: android.webkit.WebResourceRequest) =
                 assetLoader.shouldInterceptRequest(request.url)
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                 if (isFinishing || isDestroyed) return true
+                setBusy(false)
+                Toast.makeText(this@MainActivity, "نفدت ذاكرة العرض وأُعيد تشغيله. جرّب جودة أقل أو آيات أقل.", Toast.LENGTH_LONG).show()
                 val parent = view.parent as? ViewGroup
                 parent?.removeView(view)
                 view.stopLoading()
@@ -222,13 +241,14 @@ class MainActivity : Activity() {
             override fun onShowFileChooser(v: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 fileCallback?.onReceiveValue(null)
                 fileCallback = callback
+                val isFont = params.acceptTypes?.any { it.startsWith(".") } == true
                 val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = "*/*"
-                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
+                    if (!isFont) putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
                 }
                 return try {
-                    startActivityForResult(Intent.createChooser(intent, "اختر صورة أو فيديو"), 1)
+                    startActivityForResult(Intent.createChooser(intent, if (isFont) "اختر ملف الخط" else "اختر صورة أو فيديو"), 1)
                     true
                 } catch (_: Exception) { fileCallback = null; false }
             }
@@ -243,9 +263,8 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
-        if (::web.isInitialized) web.onPause()
-        // Do not call WebView.pauseTimers(): it pauses timers for every WebView and can break
-        // audio/background playback while the Activity is not visible.
+        // أثناء إنشاء الفيديو لا نوقف WebView، وإلا يتجمّد الترميز عند الانتقال للخلفية.
+        if (::web.isInitialized && !busy) web.onPause()
         super.onPause()
     }
     override fun onResume() { super.onResume(); if (::web.isInitialized) web.onResume() }

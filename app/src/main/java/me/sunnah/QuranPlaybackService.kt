@@ -7,6 +7,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -39,6 +40,7 @@ class QuranPlaybackService : MediaSessionService() {
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) { saveState() }
                 override fun onIsPlayingChanged(isPlaying: Boolean) { saveState() }
+                override fun onPlayerError(error: PlaybackException) { saveState(); stopSelf() }
             })
         }
         mediaSession = MediaSession.Builder(this, player!!).build()
@@ -62,7 +64,10 @@ class QuranPlaybackService : MediaSessionService() {
             }
             ACTION_RESTORE -> restoreSavedTrack(false)
             ACTION_PAUSE -> player?.pause()
-            ACTION_RESUME -> { if (player?.currentMediaItem == null) restoreSavedTrack(true) else player?.play() }
+            ACTION_RESUME -> {
+                if (player?.currentMediaItem == null) restoreSavedTrack(true)
+                else { if (player?.playbackState == Player.STATE_IDLE) player?.prepare(); player?.play() }
+            }
             ACTION_STOP -> { saveState(); player?.pause(); stopSelf() }
             ACTION_SEEK -> player?.seekTo(intent.getLongExtra(EXTRA_POSITION, 0L))
         }
@@ -80,10 +85,9 @@ class QuranPlaybackService : MediaSessionService() {
             p.setMediaItem(MediaItem.Builder().setUri(url).setMediaMetadata(
                 MediaMetadata.Builder().setTitle(title).setArtist(artist).build()
             ).build())
-            p.prepare()
             p.seekTo(position)
         }
-        if (autoPlay) p.play()
+        if (autoPlay) { p.prepare(); p.play() }
     }
 
     private fun saveState() {
